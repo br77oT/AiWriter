@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type {
+  Check,
+  ChecksConfig,
   Document,
   OutlineSection,
   Spec,
@@ -91,6 +93,7 @@ export function Workspace({ document: initial }: WorkspaceProps) {
             spec: next.spec,
             outline: next.outline,
             checks: next.checks,
+            checksConfig: next.checksConfig,
             draftSections: next.draftSections,
             outlineFrozen: next.outlineFrozen,
           },
@@ -120,6 +123,23 @@ export function Workspace({ document: initial }: WorkspaceProps) {
   const handleFrozenChange = useCallback(
     (outlineFrozen: boolean) => {
       void persistDocument({ ...document, outlineFrozen });
+    },
+    [document, persistDocument]
+  );
+
+  const handleChecksChange = useCallback(
+    (checks: Check[]) => {
+      void persistDocument({ ...document, checks });
+      // Question Evaluator reads from doc.checks — re-validate so the right
+      // rail picks up added/removed/edited questions.
+      scheduleRevalidate();
+    },
+    [document, persistDocument, scheduleRevalidate]
+  );
+
+  const handleChecksConfigChange = useCallback(
+    (checksConfig: ChecksConfig) => {
+      void persistDocument({ ...document, checksConfig });
     },
     [document, persistDocument]
   );
@@ -170,7 +190,12 @@ export function Workspace({ document: initial }: WorkspaceProps) {
             onOutlineChange={handleOutlineChange}
             onFrozenChange={handleFrozenChange}
           />
-          <ChecksPane />
+          <ChecksPane
+            checks={document.checks}
+            checksConfig={document.checksConfig}
+            onChecksChange={handleChecksChange}
+            onChecksConfigChange={handleChecksConfigChange}
+          />
           <DraftPane
             document={document}
             onDraftSectionChange={handleDraftSectionChange}

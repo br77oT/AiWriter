@@ -291,6 +291,95 @@ describe("Workspace outline persistence", () => {
   });
 });
 
+describe("Workspace checks persistence", () => {
+  it("clicking Add check PUTs the document with a new check", async () => {
+    const calls: Array<{ method: string; url: string; body?: unknown }> = [];
+    installFetch((input, init) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+      const body = init?.body ? JSON.parse(String(init.body)) : undefined;
+      calls.push({ method, url, body });
+      if (url.endsWith("/api/documents")) return { documents: [] };
+      return {};
+    });
+
+    const doc = newDocument("doc-1", "2026-04-29T00:00:00.000Z");
+    render(<Workspace document={doc} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /add check/i }));
+
+    await waitFor(() =>
+      expect(
+        calls.some(
+          (c) =>
+            c.method === "PUT" &&
+            c.url.endsWith(`/api/documents/${doc.id}`)
+        )
+      ).toBe(true)
+    );
+
+    const put = calls.find(
+      (c) =>
+        c.method === "PUT" && c.url.endsWith(`/api/documents/${doc.id}`)
+    )!;
+    const persisted = (
+      put.body as {
+        document: { checks: Array<{ id: string; question: string }> };
+      }
+    ).document.checks;
+    expect(persisted).toHaveLength(1);
+    expect(persisted[0].id).toBeTruthy();
+    expect(persisted[0].question).toBe("");
+  });
+
+  it("toggling block-export-if-missing persists checksConfig", async () => {
+    const calls: Array<{ method: string; url: string; body?: unknown }> = [];
+    installFetch((input, init) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+      const body = init?.body ? JSON.parse(String(init.body)) : undefined;
+      calls.push({ method, url, body });
+      if (url.endsWith("/api/documents")) return { documents: [] };
+      return {};
+    });
+
+    const doc = newDocument("doc-1", "2026-04-29T00:00:00.000Z");
+    render(<Workspace document={doc} />);
+
+    fireEvent.click(
+      screen.getByLabelText(/block export if any check is missing/i)
+    );
+
+    await waitFor(() =>
+      expect(
+        calls.some(
+          (c) =>
+            c.method === "PUT" &&
+            c.url.endsWith(`/api/documents/${doc.id}`)
+        )
+      ).toBe(true)
+    );
+
+    const put = calls.find(
+      (c) =>
+        c.method === "PUT" && c.url.endsWith(`/api/documents/${doc.id}`)
+    )!;
+    const persisted = (
+      put.body as {
+        document: {
+          checksConfig: {
+            evaluateAfterEveryGeneration: boolean;
+            blockExportIfMissing: boolean;
+          };
+        };
+      }
+    ).document.checksConfig;
+    expect(persisted.blockExportIfMissing).toBe(true);
+    // The other toggle stays at its default value.
+    expect(persisted.evaluateAfterEveryGeneration).toBe(true);
+  });
+});
+
 describe("Workspace spec persistence", () => {
   it("editing a spec field PUTs the document with the new spec", async () => {
     const calls: Array<{ method: string; url: string; body?: unknown }> = [];
