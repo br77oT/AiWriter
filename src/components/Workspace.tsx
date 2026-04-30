@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { Document, ValidationReport } from "@/lib/types";
+import type { Document, Spec, ValidationReport } from "@/lib/types";
 import { TopBar } from "./TopBar";
 import { Sidebar } from "./Sidebar";
 import { SpecPane } from "./panes/SpecPane";
@@ -94,6 +94,13 @@ export function Workspace({ document: initial }: WorkspaceProps) {
     []
   );
 
+  const handleSpecChange = useCallback(
+    (spec: Spec) => {
+      void persistDocument({ ...document, spec });
+    },
+    [document, persistDocument]
+  );
+
   const handleDraftSectionChange = useCallback(
     (outlineId: string, text: string) => {
       const next: Document = {
@@ -133,7 +140,7 @@ export function Workspace({ document: initial }: WorkspaceProps) {
       <div className="flex flex-1 overflow-hidden">
         <Sidebar activeDocumentId={document.id} />
         <main className="grid flex-1 grid-cols-[260px_260px_260px_1fr] overflow-hidden">
-          <SpecPane />
+          <SpecPane spec={document.spec} onSpecChange={handleSpecChange} />
           <OutlinePane />
           <ChecksPane />
           <DraftPane

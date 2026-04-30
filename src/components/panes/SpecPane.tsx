@@ -1,20 +1,163 @@
-// Placeholder shell for slice 003.
-export function SpecPane() {
+"use client";
+
+import { useState } from "react";
+import type { Spec } from "@/lib/types";
+
+interface SpecPaneProps {
+  spec: Spec;
+  onSpecChange: (next: Spec) => void;
+}
+
+export function SpecPane({ spec, onSpecChange }: SpecPaneProps) {
   return (
     <section
-      className="flex h-full flex-col border-r border-neutral-200 bg-white p-3"
+      className="flex h-full flex-col gap-4 overflow-y-auto border-r border-neutral-200 bg-white p-3"
       aria-labelledby="spec-pane-heading"
     >
       <h2
         id="spec-pane-heading"
-        className="mb-2 text-sm font-semibold uppercase tracking-wide text-neutral-600"
+        className="text-sm font-semibold uppercase tracking-wide text-neutral-600"
       >
         Spec
       </h2>
-      <p className="text-sm text-neutral-400">
-        Goals, tone, audience, must-include, must-avoid. Wired up in slice
-        003.
-      </p>
+
+      <Field label="Goal" htmlFor="spec-goal">
+        <textarea
+          id="spec-goal"
+          className="min-h-[5rem] w-full rounded border border-neutral-300 p-2 text-sm leading-relaxed"
+          value={spec.goal}
+          onChange={(e) => onSpecChange({ ...spec, goal: e.target.value })}
+        />
+      </Field>
+
+      <Field label="Tone" htmlFor="spec-tone">
+        <textarea
+          id="spec-tone"
+          className="min-h-[4rem] w-full rounded border border-neutral-300 p-2 text-sm leading-relaxed"
+          value={spec.tone}
+          onChange={(e) => onSpecChange({ ...spec, tone: e.target.value })}
+        />
+      </Field>
+
+      <Field label="Audience" htmlFor="spec-audience">
+        <input
+          id="spec-audience"
+          type="text"
+          className="w-full rounded border border-neutral-300 p-2 text-sm"
+          value={spec.audience}
+          onChange={(e) =>
+            onSpecChange({ ...spec, audience: e.target.value })
+          }
+        />
+      </Field>
+
+      <ListEditor
+        label="Must include"
+        kind="must-include"
+        items={spec.mustInclude}
+        onChange={(next) => onSpecChange({ ...spec, mustInclude: next })}
+      />
+
+      <ListEditor
+        label="Must avoid"
+        kind="must-avoid"
+        items={spec.mustAvoid}
+        onChange={(next) => onSpecChange({ ...spec, mustAvoid: next })}
+      />
     </section>
+  );
+}
+
+function Field({
+  label,
+  htmlFor,
+  children,
+}: {
+  label: string;
+  htmlFor: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <label
+        htmlFor={htmlFor}
+        className="mb-1 block text-xs font-medium uppercase tracking-wide text-neutral-500"
+      >
+        {label}
+      </label>
+      {children}
+    </div>
+  );
+}
+
+interface ListEditorProps {
+  label: string;
+  kind: "must-include" | "must-avoid";
+  items: string[];
+  onChange: (next: string[]) => void;
+}
+
+function ListEditor({ label, kind, items, onChange }: ListEditorProps) {
+  const [draft, setDraft] = useState("");
+
+  function add() {
+    const trimmed = draft.trim();
+    if (!trimmed) return;
+    onChange([...items, trimmed]);
+    setDraft("");
+  }
+
+  return (
+    <div>
+      <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-neutral-500">
+        {label}
+      </span>
+      {items.length === 0 ? (
+        <p className="mb-2 text-sm text-neutral-400">No items.</p>
+      ) : (
+        <ul className="mb-2 space-y-1">
+          {items.map((item, idx) => (
+            <li
+              key={`${idx}-${item}`}
+              className="flex items-center gap-2 rounded border border-neutral-200 bg-neutral-50 px-2 py-1 text-sm"
+            >
+              <span className="flex-1 break-words">{item}</span>
+              <button
+                type="button"
+                aria-label={`Remove ${kind} "${item}"`}
+                onClick={() => onChange(items.filter((_, i) => i !== idx))}
+                className="text-xs text-neutral-500 hover:text-red-600"
+              >
+                Remove
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="flex gap-2">
+        <input
+          type="text"
+          aria-label={`New ${kind} item`}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              add();
+            }
+          }}
+          className="flex-1 rounded border border-neutral-300 px-2 py-1 text-sm"
+          placeholder={kind === "must-include" ? "Add a rule…" : "Add a phrase…"}
+        />
+        <button
+          type="button"
+          aria-label={`Add ${kind} item`}
+          onClick={add}
+          className="rounded border border-neutral-300 bg-white px-2 py-1 text-sm hover:bg-neutral-100"
+        >
+          Add
+        </button>
+      </div>
+    </div>
   );
 }

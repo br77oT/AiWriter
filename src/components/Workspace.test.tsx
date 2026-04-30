@@ -213,3 +213,42 @@ describe("Workspace validation flow", () => {
     ).toBe(1);
   });
 });
+
+describe("Workspace spec persistence", () => {
+  it("editing a spec field PUTs the document with the new spec", async () => {
+    const calls: Array<{ method: string; url: string; body?: unknown }> = [];
+    installFetch((input, init) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+      const body = init?.body ? JSON.parse(String(init.body)) : undefined;
+      calls.push({ method, url, body });
+      if (url.endsWith("/api/documents")) return { documents: [] };
+      return {};
+    });
+
+    const doc = newDocument("doc-1", "2026-04-29T00:00:00.000Z");
+    render(<Workspace document={doc} />);
+
+    fireEvent.change(screen.getByLabelText(/^goal$/i), {
+      target: { value: "Document the outage." },
+    });
+
+    await waitFor(() =>
+      expect(
+        calls.some(
+          (c) =>
+            c.method === "PUT" &&
+            c.url.endsWith(`/api/documents/${doc.id}`)
+        )
+      ).toBe(true)
+    );
+
+    const put = calls.find(
+      (c) =>
+        c.method === "PUT" && c.url.endsWith(`/api/documents/${doc.id}`)
+    )!;
+    expect(
+      (put.body as { document: { spec: { goal: string } } }).document.spec.goal
+    ).toBe("Document the outage.");
+  });
+});
