@@ -1,7 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { Document, Spec, ValidationReport } from "@/lib/types";
+import type {
+  Document,
+  OutlineSection,
+  Spec,
+  ValidationReport,
+} from "@/lib/types";
 import { TopBar } from "./TopBar";
 import { Sidebar } from "./Sidebar";
 import { SpecPane } from "./panes/SpecPane";
@@ -87,6 +92,7 @@ export function Workspace({ document: initial }: WorkspaceProps) {
             outline: next.outline,
             checks: next.checks,
             draftSections: next.draftSections,
+            outlineFrozen: next.outlineFrozen,
           },
         }),
       });
@@ -97,6 +103,23 @@ export function Workspace({ document: initial }: WorkspaceProps) {
   const handleSpecChange = useCallback(
     (spec: Spec) => {
       void persistDocument({ ...document, spec });
+    },
+    [document, persistDocument]
+  );
+
+  const handleOutlineChange = useCallback(
+    (outline: OutlineSection[]) => {
+      void persistDocument({ ...document, outline });
+      // Outline shape (sections present, required-flag) feeds the structural
+      // evaluator — re-validate so the right rail reflects the change.
+      scheduleRevalidate();
+    },
+    [document, persistDocument, scheduleRevalidate]
+  );
+
+  const handleFrozenChange = useCallback(
+    (outlineFrozen: boolean) => {
+      void persistDocument({ ...document, outlineFrozen });
     },
     [document, persistDocument]
   );
@@ -141,7 +164,12 @@ export function Workspace({ document: initial }: WorkspaceProps) {
         <Sidebar activeDocumentId={document.id} />
         <main className="grid flex-1 grid-cols-[260px_260px_260px_1fr] overflow-hidden">
           <SpecPane spec={document.spec} onSpecChange={handleSpecChange} />
-          <OutlinePane />
+          <OutlinePane
+            outline={document.outline}
+            outlineFrozen={document.outlineFrozen}
+            onOutlineChange={handleOutlineChange}
+            onFrozenChange={handleFrozenChange}
+          />
           <ChecksPane />
           <DraftPane
             document={document}

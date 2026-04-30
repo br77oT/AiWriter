@@ -214,6 +214,83 @@ describe("Workspace validation flow", () => {
   });
 });
 
+describe("Workspace outline persistence", () => {
+  it("clicking Add section PUTs the document with a new outline section", async () => {
+    const calls: Array<{ method: string; url: string; body?: unknown }> = [];
+    installFetch((input, init) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+      const body = init?.body ? JSON.parse(String(init.body)) : undefined;
+      calls.push({ method, url, body });
+      if (url.endsWith("/api/documents")) return { documents: [] };
+      return {};
+    });
+
+    const doc = newDocument("doc-1", "2026-04-29T00:00:00.000Z");
+    render(<Workspace document={doc} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /add section/i }));
+
+    await waitFor(() =>
+      expect(
+        calls.some(
+          (c) =>
+            c.method === "PUT" &&
+            c.url.endsWith(`/api/documents/${doc.id}`)
+        )
+      ).toBe(true)
+    );
+
+    const put = calls.find(
+      (c) =>
+        c.method === "PUT" && c.url.endsWith(`/api/documents/${doc.id}`)
+    )!;
+    const persisted = (
+      put.body as {
+        document: { outline: Array<{ required: boolean }> };
+      }
+    ).document.outline;
+    expect(persisted).toHaveLength(1);
+    expect(persisted[0].required).toBe(true);
+  });
+
+  it("toggling Freeze persists outlineFrozen=true", async () => {
+    const calls: Array<{ method: string; url: string; body?: unknown }> = [];
+    installFetch((input, init) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+      const body = init?.body ? JSON.parse(String(init.body)) : undefined;
+      calls.push({ method, url, body });
+      if (url.endsWith("/api/documents")) return { documents: [] };
+      return {};
+    });
+
+    const doc = newDocument("doc-1", "2026-04-29T00:00:00.000Z");
+    render(<Workspace document={doc} />);
+
+    fireEvent.click(screen.getByLabelText(/freeze outline/i));
+
+    await waitFor(() =>
+      expect(
+        calls.some(
+          (c) =>
+            c.method === "PUT" &&
+            c.url.endsWith(`/api/documents/${doc.id}`)
+        )
+      ).toBe(true)
+    );
+
+    const put = calls.find(
+      (c) =>
+        c.method === "PUT" && c.url.endsWith(`/api/documents/${doc.id}`)
+    )!;
+    expect(
+      (put.body as { document: { outlineFrozen: boolean } }).document
+        .outlineFrozen
+    ).toBe(true);
+  });
+});
+
 describe("Workspace spec persistence", () => {
   it("editing a spec field PUTs the document with the new spec", async () => {
     const calls: Array<{ method: string; url: string; body?: unknown }> = [];
