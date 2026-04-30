@@ -1,3 +1,38 @@
 .old/
 startClaude.sh
 .idea/
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.js
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+
+# local env files
+.env*.local
+.env
+
+# typescript
+*.tsbuildinfo
+
+# sqlite database files (V1 single-user local store)
+/data/*.db
+/data/*.db-journal
+/data/*.db-shm
+/data/*.db-wal

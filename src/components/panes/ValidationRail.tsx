@@ -1,0 +1,161 @@
+"use client";
+
+import type { Document, ValidationReport } from "@/lib/types";
+
+interface ValidationRailProps {
+  document: Document;
+  report: ValidationReport | null;
+  status: "idle" | "running" | "error";
+}
+
+const STRUCTURE_BADGE: Record<string, { glyph: string; tone: string }> = {
+  present: { glyph: "✓", tone: "text-emerald-700" },
+  thin: { glyph: "~", tone: "text-amber-700" },
+  missing: { glyph: "✗", tone: "text-red-700" },
+};
+
+const QUESTION_BADGE: Record<string, { label: string; tone: string }> = {
+  answered: { label: "Answered", tone: "text-emerald-700" },
+  partial: { label: "Partial", tone: "text-amber-700" },
+  missing: { label: "Missing", tone: "text-red-700" },
+};
+
+export function ValidationRail({
+  document,
+  report,
+  status,
+}: ValidationRailProps) {
+  const headingFor = (outlineId: string) =>
+    document.outline.find((s) => s.id === outlineId)?.heading ?? outlineId;
+  const questionFor = (checkId: string) =>
+    document.checks.find((c) => c.id === checkId)?.question ?? checkId;
+
+  return (
+    <aside
+      className="flex h-full w-80 shrink-0 flex-col overflow-y-auto border-l border-neutral-200 bg-white p-3 text-sm"
+      aria-labelledby="validation-rail-heading"
+    >
+      <div className="mb-3 flex items-baseline justify-between">
+        <h2
+          id="validation-rail-heading"
+          className="text-sm font-semibold uppercase tracking-wide text-neutral-600"
+        >
+          Validation
+        </h2>
+        {report && <CoverageBadge score={report.coverageScore} />}
+      </div>
+
+      {status === "running" && (
+        <p className="text-neutral-500" data-testid="validation-status">
+          Running validation…
+        </p>
+      )}
+      {status === "error" && (
+        <p className="text-red-700" data-testid="validation-status">
+          Validation failed. Try again.
+        </p>
+      )}
+
+      {!report && status === "idle" && (
+        <p className="text-neutral-400">
+          Click <span className="font-medium">Validate</span> to run a check.
+        </p>
+      )}
+
+      {report && (
+        <>
+          <section className="mb-4">
+            <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-neutral-500">
+              Structure
+            </h3>
+            {report.structure.length === 0 ? (
+              <p className="text-neutral-400">No outline sections defined.</p>
+            ) : (
+              <ul className="space-y-1">
+                {report.structure.map((s) => {
+                  const badge = STRUCTURE_BADGE[s.status];
+                  return (
+                    <li key={s.outlineId} className="flex items-baseline gap-2">
+                      <span
+                        className={`w-4 font-mono ${badge.tone}`}
+                        aria-label={s.status}
+                      >
+                        {badge.glyph}
+                      </span>
+                      <div className="flex-1">
+                        <div className="text-neutral-800">
+                          {headingFor(s.outlineId)}
+                        </div>
+                        {s.note && (
+                          <div className="text-xs text-neutral-500">
+                            {s.note}
+                          </div>
+                        )}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </section>
+
+          <section>
+            <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-neutral-500">
+              Document Checks
+            </h3>
+            {report.questions.length === 0 ? (
+              <p className="text-neutral-400">No checks defined.</p>
+            ) : (
+              <ul className="space-y-3">
+                {report.questions.map((q) => {
+                  const badge = QUESTION_BADGE[q.status];
+                  return (
+                    <li key={q.checkId} className="border-l-2 border-neutral-200 pl-2">
+                      <div className="flex items-baseline justify-between gap-2">
+                        <span className="text-neutral-800">
+                          {questionFor(q.checkId)}
+                        </span>
+                        <span className={`text-xs font-medium ${badge.tone}`}>
+                          {badge.label}
+                        </span>
+                      </div>
+                      {q.evidence && (
+                        <div className="mt-1 text-xs text-neutral-600">
+                          <span className="font-semibold">Evidence: </span>
+                          <span className="italic">“{q.evidence}”</span>
+                        </div>
+                      )}
+                      {q.suggestion && (
+                        <div className="mt-1 text-xs text-neutral-600">
+                          <span className="font-semibold">Suggestion: </span>
+                          {q.suggestion}
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </section>
+        </>
+      )}
+    </aside>
+  );
+}
+
+function CoverageBadge({
+  score,
+}: {
+  score: ValidationReport["coverageScore"];
+}) {
+  return (
+    <span
+      className="rounded bg-neutral-900 px-2 py-0.5 font-mono text-xs text-white"
+      data-testid="coverage-score"
+      title="Checks answered / Sections present"
+    >
+      {score.checksAnswered}/{score.checksTotal} checks ·{" "}
+      {score.sectionsPresent}/{score.sectionsTotal} sections
+    </span>
+  );
+}
