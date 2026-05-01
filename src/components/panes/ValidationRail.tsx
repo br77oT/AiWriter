@@ -11,6 +11,10 @@ interface ValidationRailProps {
   autofixBusy?: boolean;
   lockedSkipped?: string[];
   onAutofix?: (mode: AutofixMode) => void;
+  // When true, the rail fills its parent rather than imposing a fixed
+  // width. Used by the mobile layout where the active-tab area owns the
+  // width.
+  compact?: boolean;
 }
 
 const STRUCTURE_BADGE: Record<string, { glyph: string; tone: string }> = {
@@ -32,6 +36,7 @@ export function ValidationRail({
   autofixBusy = false,
   lockedSkipped,
   onAutofix,
+  compact = false,
 }: ValidationRailProps) {
   const headingFor = (outlineId: string) =>
     document.outline.find((s) => s.id === outlineId)?.heading ?? outlineId;
@@ -51,7 +56,12 @@ export function ValidationRail({
 
   return (
     <aside
-      className="flex h-full w-80 shrink-0 flex-col overflow-y-auto border-l border-neutral-200 bg-white p-3 text-sm"
+      className={
+        "flex h-full flex-col overflow-y-auto bg-white p-3 text-sm " +
+        (compact
+          ? "w-full"
+          : "w-80 shrink-0 border-l border-neutral-200")
+      }
       aria-labelledby="validation-rail-heading"
     >
       <div className="mb-3 flex items-baseline justify-between">

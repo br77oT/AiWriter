@@ -47,7 +47,7 @@ export function TopBar({
   const [fixture, setFixture] = useState("");
 
   return (
-    <header className="flex items-center gap-3 border-b border-neutral-200 bg-white px-4 py-2">
+    <header className="flex flex-wrap items-center gap-3 border-b border-neutral-200 bg-white px-4 py-2">
       <span className="font-semibold tracking-tight">AiWriter</span>
       <span className="text-neutral-400">·</span>
       <span className="text-sm text-neutral-700" data-testid="doc-title">

@@ -1680,3 +1680,104 @@ describe("Workspace export flow (slice 012)", () => {
     expect(notice).toHaveTextContent(/What happened\?/);
   });
 });
+
+describe("Workspace responsive layout (slice 013)", () => {
+  const originalWidth = window.innerWidth;
+  function setViewportWidth(px: number) {
+    Object.defineProperty(window, "innerWidth", {
+      configurable: true,
+      writable: true,
+      value: px,
+    });
+  }
+  afterEach(() => setViewportWidth(originalWidth));
+
+  it("at a desktop viewport (>=900px), all five panes render simultaneously", () => {
+    setViewportWidth(1280);
+    const doc = newDocument("doc-desktop", "2026-04-30T00:00:00.000Z");
+    render(<Workspace document={doc} />);
+
+    expect(screen.getByRole("heading", { name: /^spec$/i })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /^outline$/i })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /^checks$/i })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /^draft$/i })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /^validation$/i })).toBeInTheDocument();
+
+    // No mobile shell.
+    expect(screen.queryByTestId("mobile-tab-bar")).toBeNull();
+    expect(
+      screen.queryByRole("tablist", { name: /workspace panes/i })
+    ).toBeNull();
+  });
+
+  it("at a mobile viewport (<900px), the workspace renders as five tabs and only one pane is visible", () => {
+    setViewportWidth(800);
+    const doc = newDocument("doc-mobile", "2026-04-30T00:00:00.000Z");
+    render(<Workspace document={doc} />);
+
+    // Tab bar with five tabs.
+    const tablist = screen.getByRole("tablist", { name: /workspace panes/i });
+    expect(within(tablist).getByRole("tab", { name: /^spec$/i })).toBeInTheDocument();
+    expect(within(tablist).getByRole("tab", { name: /^outline$/i })).toBeInTheDocument();
+    expect(within(tablist).getByRole("tab", { name: /^checks$/i })).toBeInTheDocument();
+    expect(within(tablist).getByRole("tab", { name: /^draft$/i })).toBeInTheDocument();
+    expect(within(tablist).getByRole("tab", { name: /^validation$/i })).toBeInTheDocument();
+
+    // Default tab is Spec — only the Spec pane heading is visible.
+    expect(screen.getByRole("heading", { name: /^spec$/i })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /^outline$/i })).toBeNull();
+    expect(screen.queryByRole("heading", { name: /^checks$/i })).toBeNull();
+    expect(screen.queryByRole("heading", { name: /^draft$/i })).toBeNull();
+    expect(screen.queryByRole("heading", { name: /^validation$/i })).toBeNull();
+
+    // Top-bar mutating actions remain reachable on mobile.
+    expect(screen.getByRole("button", { name: /^validate$/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /generate draft/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^export$/i })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: /^template$/i })).toBeInTheDocument();
+  });
+
+  it("at a mobile viewport, clicking a tab swaps the visible pane", () => {
+    setViewportWidth(800);
+    const doc = {
+      ...newDocument("doc-mobile-2", "2026-04-30T00:00:00.000Z"),
+      outline: [
+        { id: "summary", heading: "Summary", description: "", required: true },
+      ],
+    };
+    render(<Workspace document={doc} />);
+
+    fireEvent.click(screen.getByRole("tab", { name: /^outline$/i }));
+    expect(screen.getByRole("heading", { name: /^outline$/i })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /^spec$/i })).toBeNull();
+
+    fireEvent.click(screen.getByRole("tab", { name: /^draft$/i }));
+    expect(screen.getByRole("heading", { name: /^draft$/i })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /^outline$/i })).toBeNull();
+  });
+
+  it("at a mobile viewport, the Menu button opens a drawer with the documents/templates list", () => {
+    setViewportWidth(800);
+    const doc = newDocument("doc-mobile-3", "2026-04-30T00:00:00.000Z");
+    render(<Workspace document={doc} />);
+
+    expect(
+      screen.queryByRole("dialog", { name: /documents and templates drawer/i })
+    ).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: /^menu$/i }));
+    const drawer = screen.getByRole("dialog", {
+      name: /documents and templates drawer/i,
+    });
+    // The same Sidebar landmark appears inside the drawer.
+    expect(
+      within(drawer).getByRole("complementary", {
+        name: /documents and templates/i,
+      })
+    ).toBeInTheDocument();
+    // "New document" action is reachable from the drawer.
+    expect(
+      within(drawer).getByRole("button", { name: /new document/i })
+    ).toBeInTheDocument();
+  });
+});

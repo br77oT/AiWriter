@@ -20,6 +20,8 @@ import { SectionRewriteModal } from "./SectionRewriteModal";
 import { TemplatePickerModal } from "./TemplatePickerModal";
 import { VersionHistoryPanel } from "./VersionHistoryPanel";
 import { ExportPopover } from "./ExportPopover";
+import { MobileWorkspaceLayout } from "./MobileWorkspaceLayout";
+import { useIsMobile } from "@/lib/useIsMobile";
 import { getFixture } from "@/lib/validation/fixtures";
 import type { PreserveFlags, SectionMode } from "@/lib/generation";
 import {
@@ -64,6 +66,7 @@ export function Workspace({ document: initial }: WorkspaceProps) {
     null
   );
   const [exportOpen, setExportOpen] = useState(false);
+  const isMobile = useIsMobile();
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Track the latest validate request so a slow/old response can't
@@ -424,6 +427,55 @@ export function Workspace({ document: initial }: WorkspaceProps) {
     [document, persistDocument, runValidate]
   );
 
+  const sidebar = (
+    <Sidebar
+      activeDocumentId={document.id}
+      templates={templates}
+      onSelectTemplate={handleSelectTemplate}
+      compact={isMobile}
+    />
+  );
+  const specPane = (
+    <SpecPane spec={document.spec} onSpecChange={handleSpecChange} />
+  );
+  const outlinePane = (
+    <OutlinePane
+      outline={document.outline}
+      outlineFrozen={document.outlineFrozen}
+      onOutlineChange={handleOutlineChange}
+      onFrozenChange={handleFrozenChange}
+    />
+  );
+  const checksPane = (
+    <ChecksPane
+      checks={document.checks}
+      checksConfig={document.checksConfig}
+      onChecksChange={handleChecksChange}
+      onChecksConfigChange={handleChecksConfigChange}
+      onLoadTemplate={handleOpenPicker}
+    />
+  );
+  const draftPane = (
+    <DraftPane
+      document={document}
+      onDraftSectionChange={handleDraftSectionChange}
+      onLockToggle={handleLockToggle}
+      onRewrite={openRewriteModal("rewrite")}
+      onExpand={openRewriteModal("expand")}
+    />
+  );
+  const validationRail = (
+    <ValidationRail
+      document={document}
+      report={report}
+      status={status}
+      autofixBusy={autofixStatus === "running"}
+      lockedSkipped={lockedSkipped}
+      onAutofix={handleAutofix}
+      compact={isMobile}
+    />
+  );
+
   return (
     <div className="flex h-full flex-col">
       <TopBar
@@ -444,44 +496,27 @@ export function Workspace({ document: initial }: WorkspaceProps) {
         onOpenHistory={handleOpenHistory}
         onOpenExport={handleOpenExport}
       />
-      <div className="flex flex-1 overflow-hidden">
-        <Sidebar
-          activeDocumentId={document.id}
-          templates={templates}
-          onSelectTemplate={handleSelectTemplate}
+      {isMobile ? (
+        <MobileWorkspaceLayout
+          sidebar={sidebar}
+          spec={specPane}
+          outline={outlinePane}
+          checks={checksPane}
+          draft={draftPane}
+          validation={validationRail}
         />
-        <main className="grid flex-1 grid-cols-[260px_260px_260px_1fr] overflow-hidden">
-          <SpecPane spec={document.spec} onSpecChange={handleSpecChange} />
-          <OutlinePane
-            outline={document.outline}
-            outlineFrozen={document.outlineFrozen}
-            onOutlineChange={handleOutlineChange}
-            onFrozenChange={handleFrozenChange}
-          />
-          <ChecksPane
-            checks={document.checks}
-            checksConfig={document.checksConfig}
-            onChecksChange={handleChecksChange}
-            onChecksConfigChange={handleChecksConfigChange}
-            onLoadTemplate={handleOpenPicker}
-          />
-          <DraftPane
-            document={document}
-            onDraftSectionChange={handleDraftSectionChange}
-            onLockToggle={handleLockToggle}
-            onRewrite={openRewriteModal("rewrite")}
-            onExpand={openRewriteModal("expand")}
-          />
-        </main>
-        <ValidationRail
-          document={document}
-          report={report}
-          status={status}
-          autofixBusy={autofixStatus === "running"}
-          lockedSkipped={lockedSkipped}
-          onAutofix={handleAutofix}
-        />
-      </div>
+      ) : (
+        <div className="flex flex-1 overflow-hidden">
+          {sidebar}
+          <main className="grid flex-1 grid-cols-[260px_260px_260px_1fr] overflow-hidden">
+            {specPane}
+            {outlinePane}
+            {checksPane}
+            {draftPane}
+          </main>
+          {validationRail}
+        </div>
+      )}
       {rewriteTarget && (
         <SectionRewriteModal
           sectionHeading={rewriteTarget.heading}

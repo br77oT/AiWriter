@@ -10,12 +10,16 @@ interface SidebarProps {
   activeDocumentId: string;
   templates: Template[];
   onSelectTemplate: (templateId: string) => void;
+  // When true, the sidebar fills its parent rather than imposing a fixed
+  // width. Used by the mobile layout where the drawer owns the width.
+  compact?: boolean;
 }
 
 export function Sidebar({
   activeDocumentId,
   templates,
   onSelectTemplate,
+  compact = false,
 }: SidebarProps) {
   const router = useRouter();
   const [docs, setDocs] = useState<DocumentSummary[]>([]);
@@ -44,7 +48,10 @@ export function Sidebar({
 
   return (
     <aside
-      className="flex h-full w-64 shrink-0 flex-col border-r border-neutral-200 bg-white"
+      className={
+        "flex h-full flex-col border-r border-neutral-200 bg-white " +
+        (compact ? "w-full" : "w-64 shrink-0")
+      }
       aria-label="Documents and templates"
     >
       <div className="border-b border-neutral-200 p-3">
