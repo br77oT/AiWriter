@@ -808,6 +808,266 @@ describe("Workspace section rewrite + lock (slice 007)", () => {
   });
 });
 
+describe("Workspace autofix flow (slice 008)", () => {
+  const reportWithFailures: ValidationReport = {
+    structure: [
+      { outlineId: "summary", status: "present" },
+      { outlineId: "impact", status: "thin", note: "Section is brief." },
+    ],
+    questions: [
+      {
+        checkId: "c1",
+        status: "missing",
+        suggestion: "Insert affected groups.",
+      },
+    ],
+    coverageScore: {
+      checksAnswered: 0,
+      checksTotal: 1,
+      sectionsPresent: 1,
+      sectionsTotal: 2,
+    },
+  };
+
+  it("clicking 'Auto-fix missing items' POSTs /api/autofix with mode=questions", async () => {
+    const calls: Array<{ method: string; url: string; body?: unknown }> = [];
+    installFetch((input, init) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+      const body = init?.body ? JSON.parse(String(init.body)) : undefined;
+      calls.push({ method, url, body });
+      if (url.endsWith("/api/documents")) return { documents: [] };
+      if (url.endsWith("/api/validate")) return { report: reportWithFailures };
+      if (url.endsWith("/api/autofix")) {
+        return {
+          document: {
+            ...newDocument("doc-1", "2026-04-30T00:00:00.000Z"),
+            outline: [
+              {
+                id: "summary",
+                heading: "Summary",
+                description: "",
+                required: true,
+              },
+              {
+                id: "impact",
+                heading: "Impact",
+                description: "",
+                required: true,
+              },
+            ],
+            checks: [{ id: "c1", question: "Who was affected?" }],
+            draftSections: {
+              summary: "Original summary.",
+              impact: "Regenerated impact prose.",
+            },
+          },
+          draftSections: {
+            summary: "Original summary.",
+            impact: "Regenerated impact prose.",
+          },
+          regeneratedSectionIds: ["impact"],
+          lockedSkipped: [],
+        };
+      }
+      return {};
+    });
+
+    const doc = {
+      ...newDocument("doc-1", "2026-04-30T00:00:00.000Z"),
+      outline: [
+        { id: "summary", heading: "Summary", description: "", required: true },
+        { id: "impact", heading: "Impact", description: "", required: true },
+      ],
+      checks: [{ id: "c1", question: "Who was affected?" }],
+      draftSections: {
+        summary: "Original summary.",
+        impact: "Original impact text.",
+      },
+    };
+    render(<Workspace document={doc} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /^validate$/i }));
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: /Auto-fix missing items/ })
+      ).toBeEnabled()
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /Auto-fix missing items/ })
+    );
+
+    await waitFor(() =>
+      expect(
+        calls.some(
+          (c) => c.method === "POST" && c.url.endsWith("/api/autofix")
+        )
+      ).toBe(true)
+    );
+
+    const post = calls.find(
+      (c) => c.method === "POST" && c.url.endsWith("/api/autofix")
+    )!;
+    expect((post.body as { mode: string }).mode).toBe("questions");
+
+    // After autofix, the textarea reflects the regenerated draft.
+    await waitFor(() =>
+      expect(
+        screen.getByLabelText(/Draft text for Impact/) as HTMLTextAreaElement
+      ).toHaveValue("Regenerated impact prose.")
+    );
+
+    // Validate is fired again after autofix so the rail refreshes.
+    expect(
+      calls.filter(
+        (c) => c.method === "POST" && c.url.endsWith("/api/validate")
+      ).length
+    ).toBeGreaterThanOrEqual(2);
+  });
+
+  it("clicking 'Regenerate only failed sections' POSTs /api/autofix with mode=structure", async () => {
+    const calls: Array<{ method: string; url: string; body?: unknown }> = [];
+    installFetch((input, init) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+      const body = init?.body ? JSON.parse(String(init.body)) : undefined;
+      calls.push({ method, url, body });
+      if (url.endsWith("/api/documents")) return { documents: [] };
+      if (url.endsWith("/api/validate")) return { report: reportWithFailures };
+      if (url.endsWith("/api/autofix")) {
+        return {
+          document: {
+            ...newDocument("doc-1", "2026-04-30T00:00:00.000Z"),
+            outline: [
+              {
+                id: "impact",
+                heading: "Impact",
+                description: "",
+                required: true,
+              },
+            ],
+            checks: [],
+            draftSections: { impact: "Filled-in impact." },
+          },
+          draftSections: { impact: "Filled-in impact." },
+          regeneratedSectionIds: ["impact"],
+          lockedSkipped: [],
+        };
+      }
+      return {};
+    });
+
+    const doc = {
+      ...newDocument("doc-1", "2026-04-30T00:00:00.000Z"),
+      outline: [
+        { id: "impact", heading: "Impact", description: "", required: true },
+      ],
+      checks: [],
+      draftSections: { impact: "Brief." },
+    };
+    render(<Workspace document={doc} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /^validate$/i }));
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: /Regenerate only failed sections/ })
+      ).toBeEnabled()
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /Regenerate only failed sections/ })
+    );
+
+    await waitFor(() =>
+      expect(
+        calls.some(
+          (c) => c.method === "POST" && c.url.endsWith("/api/autofix")
+        )
+      ).toBe(true)
+    );
+
+    const post = calls.find(
+      (c) => c.method === "POST" && c.url.endsWith("/api/autofix")
+    )!;
+    expect((post.body as { mode: string }).mode).toBe("structure");
+  });
+
+  it("surfaces a locked-section notice when autofix returns lockedSkipped", async () => {
+    installFetch((input) => {
+      const url = String(input);
+      if (url.endsWith("/api/documents")) return { documents: [] };
+      if (url.endsWith("/api/validate")) return { report: reportWithFailures };
+      if (url.endsWith("/api/autofix")) {
+        return {
+          document: {
+            ...newDocument("doc-1", "2026-04-30T00:00:00.000Z"),
+            outline: [
+              {
+                id: "summary",
+                heading: "Summary",
+                description: "",
+                required: true,
+              },
+              {
+                id: "impact",
+                heading: "Impact",
+                description: "",
+                required: true,
+              },
+            ],
+            checks: [{ id: "c1", question: "Who was affected?" }],
+            draftSections: {
+              summary: "Original summary.",
+              impact: "Original impact.",
+            },
+            lockedSectionIds: ["impact"],
+          },
+          draftSections: {
+            summary: "Original summary.",
+            impact: "Original impact.",
+          },
+          regeneratedSectionIds: [],
+          lockedSkipped: ["impact"],
+        };
+      }
+      return {};
+    });
+
+    const doc = {
+      ...newDocument("doc-1", "2026-04-30T00:00:00.000Z"),
+      outline: [
+        { id: "summary", heading: "Summary", description: "", required: true },
+        { id: "impact", heading: "Impact", description: "", required: true },
+      ],
+      checks: [{ id: "c1", question: "Who was affected?" }],
+      draftSections: {
+        summary: "Original summary.",
+        impact: "Original impact.",
+      },
+      lockedSectionIds: ["impact"],
+    };
+    render(<Workspace document={doc} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /^validate$/i }));
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: /Auto-fix missing items/ })
+      ).toBeEnabled()
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /Auto-fix missing items/ })
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId("autofix-locked-notice")).toHaveTextContent(
+        /Impact/
+      )
+    );
+  });
+});
+
 describe("Workspace spec persistence", () => {
   it("editing a spec field PUTs the document with the new spec", async () => {
     const calls: Array<{ method: string; url: string; body?: unknown }> = [];

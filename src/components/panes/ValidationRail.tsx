@@ -2,10 +2,15 @@
 
 import type { Document, ValidationReport } from "@/lib/types";
 
+export type AutofixMode = "questions" | "structure";
+
 interface ValidationRailProps {
   document: Document;
   report: ValidationReport | null;
   status: "idle" | "running" | "error";
+  autofixBusy?: boolean;
+  lockedSkipped?: string[];
+  onAutofix?: (mode: AutofixMode) => void;
 }
 
 const STRUCTURE_BADGE: Record<string, { glyph: string; tone: string }> = {
@@ -24,11 +29,25 @@ export function ValidationRail({
   document,
   report,
   status,
+  autofixBusy = false,
+  lockedSkipped,
+  onAutofix,
 }: ValidationRailProps) {
   const headingFor = (outlineId: string) =>
     document.outline.find((s) => s.id === outlineId)?.heading ?? outlineId;
   const questionFor = (checkId: string) =>
     document.checks.find((c) => c.id === checkId)?.question ?? checkId;
+
+  const failingChecks = report
+    ? report.questions.filter(
+        (q) => q.status === "missing" || q.status === "partial"
+      ).length
+    : 0;
+  const failingStructure = report
+    ? report.structure.filter(
+        (s) => s.status === "missing" || s.status === "thin"
+      ).length
+    : 0;
 
   return (
     <aside
@@ -137,6 +156,44 @@ export function ValidationRail({
               </ul>
             )}
           </section>
+
+          {lockedSkipped && lockedSkipped.length > 0 && (
+            <p
+              className="mt-4 rounded border border-amber-300 bg-amber-50 p-2 text-xs text-amber-800"
+              data-testid="autofix-locked-notice"
+            >
+              Skipped {lockedSkipped.length} locked section
+              {lockedSkipped.length === 1 ? "" : "s"} that contained failing
+              items: {lockedSkipped.map(headingFor).join(", ")}. Unlock to
+              regenerate.
+            </p>
+          )}
+
+          {onAutofix && (
+            <div className="mt-4 flex flex-col gap-2 border-t border-neutral-200 pt-3">
+              <button
+                type="button"
+                disabled={autofixBusy || failingChecks === 0}
+                onClick={() => onAutofix("questions")}
+                className="rounded border border-neutral-300 bg-white px-3 py-1 text-sm hover:bg-neutral-100 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-400"
+              >
+                Auto-fix missing items
+              </button>
+              <button
+                type="button"
+                disabled={autofixBusy || failingStructure === 0}
+                onClick={() => onAutofix("structure")}
+                className="rounded border border-neutral-300 bg-white px-3 py-1 text-sm hover:bg-neutral-100 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-400"
+              >
+                Regenerate only failed sections
+              </button>
+              {autofixBusy && (
+                <p className="text-xs text-neutral-500" data-testid="autofix-status">
+                  Regenerating…
+                </p>
+              )}
+            </div>
+          )}
         </>
       )}
     </aside>

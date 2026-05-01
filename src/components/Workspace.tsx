@@ -15,7 +15,7 @@ import { SpecPane } from "./panes/SpecPane";
 import { OutlinePane } from "./panes/OutlinePane";
 import { ChecksPane } from "./panes/ChecksPane";
 import { DraftPane } from "./panes/DraftPane";
-import { ValidationRail } from "./panes/ValidationRail";
+import { ValidationRail, type AutofixMode } from "./panes/ValidationRail";
 import { SectionRewriteModal } from "./SectionRewriteModal";
 import { getFixture } from "@/lib/validation/fixtures";
 import type { PreserveFlags, SectionMode } from "@/lib/generation";
@@ -29,6 +29,7 @@ const REVALIDATE_DEBOUNCE_MS = 600;
 
 type ValidationStatus = "idle" | "running" | "error";
 type GenerationStatus = "idle" | "running" | "error";
+type AutofixStatus = "idle" | "running" | "error";
 
 interface RewriteTarget {
   outlineId: string;
@@ -45,6 +46,8 @@ export function Workspace({ document: initial }: WorkspaceProps) {
     null
   );
   const [rewriteBusy, setRewriteBusy] = useState(false);
+  const [autofixStatus, setAutofixStatus] = useState<AutofixStatus>("idle");
+  const [lockedSkipped, setLockedSkipped] = useState<string[]>([]);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Track the latest validate request so a slow/old response can't
@@ -252,6 +255,34 @@ export function Workspace({ document: initial }: WorkspaceProps) {
     }
   }, [document.id, document.checksConfig.evaluateAfterEveryGeneration, runValidate]);
 
+  const handleAutofix = useCallback(
+    async (mode: AutofixMode) => {
+      setAutofixStatus("running");
+      try {
+        const res = await fetch("/api/autofix", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ documentId: document.id, mode }),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const { document: next, lockedSkipped: skipped } = (await res.json()) as {
+          document: Document;
+          lockedSkipped: string[];
+        };
+        setDocument(next);
+        setLockedSkipped(skipped ?? []);
+        setAutofixStatus("idle");
+        // Re-validate so the rail flips statuses for the regenerated sections.
+        // Slice 008 acceptance: "After either action, validation re-runs and
+        // the rail updates." This is mode-independent — always run.
+        void runValidate();
+      } catch {
+        setAutofixStatus("error");
+      }
+    },
+    [document.id, runValidate]
+  );
+
   const handleLoadFixture = useCallback(
     async (fixtureId: string) => {
       const fixture = getFixture(fixtureId);
@@ -307,6 +338,9 @@ export function Workspace({ document: initial }: WorkspaceProps) {
           document={document}
           report={report}
           status={status}
+          autofixBusy={autofixStatus === "running"}
+          lockedSkipped={lockedSkipped}
+          onAutofix={handleAutofix}
         />
       </div>
       {rewriteTarget && (
