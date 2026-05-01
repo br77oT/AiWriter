@@ -19,6 +19,7 @@ import { ValidationRail, type AutofixMode } from "./panes/ValidationRail";
 import { SectionRewriteModal } from "./SectionRewriteModal";
 import { TemplatePickerModal } from "./TemplatePickerModal";
 import { VersionHistoryPanel } from "./VersionHistoryPanel";
+import { ExportPopover } from "./ExportPopover";
 import { getFixture } from "@/lib/validation/fixtures";
 import type { PreserveFlags, SectionMode } from "@/lib/generation";
 import {
@@ -62,6 +63,7 @@ export function Workspace({ document: initial }: WorkspaceProps) {
   const [restoringVersionId, setRestoringVersionId] = useState<string | null>(
     null
   );
+  const [exportOpen, setExportOpen] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Track the latest validate request so a slow/old response can't
@@ -369,6 +371,18 @@ export function Workspace({ document: initial }: WorkspaceProps) {
   const handleOpenHistory = useCallback(() => setHistoryOpen(true), []);
   const handleCloseHistory = useCallback(() => setHistoryOpen(false), []);
 
+  // PRD §user story 33: opening Export with no current report should run
+  // validate first so the block-if-missing check has fresh data. Use the
+  // current snapshot as the source of truth — a stale UI report shouldn't
+  // unblock export when, say, the toggle was just flipped on.
+  const handleOpenExport = useCallback(() => {
+    if (!report) {
+      void runValidate();
+    }
+    setExportOpen(true);
+  }, [report, runValidate]);
+  const handleCloseExport = useCallback(() => setExportOpen(false), []);
+
   const handleRestoreVersion = useCallback(
     async (versionId: string) => {
       setRestoringVersionId(versionId);
@@ -417,6 +431,7 @@ export function Workspace({ document: initial }: WorkspaceProps) {
         validating={status === "running"}
         generating={genStatus === "running"}
         canGenerate={document.outline.length > 0}
+        canExport={hasAnyDraft(document)}
         templates={templates}
         selectedTemplateId={document.templateId}
         canSaveAsTemplate={!isDocumentEmpty(document)}
@@ -427,6 +442,7 @@ export function Workspace({ document: initial }: WorkspaceProps) {
         onSelectTemplate={handleSelectTemplate}
         onSaveAsTemplate={handleSaveAsTemplate}
         onOpenHistory={handleOpenHistory}
+        onOpenExport={handleOpenExport}
       />
       <div className="flex flex-1 overflow-hidden">
         <Sidebar
@@ -491,6 +507,19 @@ export function Workspace({ document: initial }: WorkspaceProps) {
           onRestore={handleRestoreVersion}
         />
       )}
+      {exportOpen && (
+        <ExportPopover
+          document={document}
+          report={report}
+          onClose={handleCloseExport}
+        />
+      )}
     </div>
+  );
+}
+
+function hasAnyDraft(doc: Document): boolean {
+  return Object.values(doc.draftSections).some(
+    (text) => text && text.trim() !== ""
   );
 }

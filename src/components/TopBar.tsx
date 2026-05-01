@@ -9,6 +9,7 @@ interface TopBarProps {
   validating: boolean;
   generating: boolean;
   canGenerate: boolean;
+  canExport: boolean;
   templates: Template[];
   selectedTemplateId: string | null;
   canSaveAsTemplate: boolean;
@@ -19,6 +20,7 @@ interface TopBarProps {
   onSelectTemplate: (templateId: string) => void;
   onSaveAsTemplate: () => void;
   onOpenHistory: () => void;
+  onOpenExport: () => void;
 }
 
 // Top bar shell. Slice 009 enables the Template selector (was placeholder)
@@ -29,6 +31,7 @@ export function TopBar({
   validating,
   generating,
   canGenerate,
+  canExport,
   templates,
   selectedTemplateId,
   canSaveAsTemplate,
@@ -39,6 +42,7 @@ export function TopBar({
   onSelectTemplate,
   onSaveAsTemplate,
   onOpenHistory,
+  onOpenExport,
 }: TopBarProps) {
   const [fixture, setFixture] = useState("");
 
@@ -138,9 +142,14 @@ export function TopBar({
         </button>
         <button
           type="button"
-          disabled
-          className="rounded border border-neutral-300 bg-neutral-100 px-3 py-1 text-sm text-neutral-400"
-          title="Available in slice 012"
+          onClick={onOpenExport}
+          disabled={!canExport}
+          title={
+            canExport
+              ? undefined
+              : "Add at least one section of draft text before exporting."
+          }
+          className="rounded border border-neutral-300 bg-white px-3 py-1 text-sm hover:bg-neutral-100 disabled:bg-neutral-100 disabled:text-neutral-400"
         >
           Export
         </button>

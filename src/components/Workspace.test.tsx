@@ -1548,3 +1548,135 @@ describe("Workspace spec persistence", () => {
     ).toBe("Document the outage.");
   });
 });
+
+describe("Workspace export flow (slice 012)", () => {
+  beforeEach(() => {
+    Object.defineProperty(window.navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: vi.fn(async () => undefined) },
+    });
+  });
+
+  it("Export button is enabled once any draft section has content", () => {
+    const doc = {
+      ...newDocument("doc-1", "2026-04-30T00:00:00.000Z"),
+      outline: [
+        { id: "summary", heading: "Summary", description: "", required: true },
+      ],
+      draftSections: { summary: "Pipe burst at 03:15." },
+    };
+    render(<Workspace document={doc} />);
+
+    expect(screen.getByRole("button", { name: /^export$/i })).toBeEnabled();
+  });
+
+  it("opening Export with no current report triggers validate before showing the popover", async () => {
+    const calls: Array<{ method: string; url: string }> = [];
+    installFetch((input, init) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+      calls.push({ method, url });
+      if (url.endsWith("/api/documents")) return { documents: [] };
+      if (url.endsWith("/api/templates")) return { templates: [] };
+      if (url.endsWith("/api/validate")) {
+        return {
+          report: {
+            structure: [],
+            questions: [],
+            coverageScore: {
+              checksAnswered: 0,
+              checksTotal: 0,
+              sectionsPresent: 0,
+              sectionsTotal: 0,
+            },
+          },
+        };
+      }
+      return {};
+    });
+
+    const doc = {
+      ...newDocument("doc-1", "2026-04-30T00:00:00.000Z"),
+      outline: [
+        { id: "summary", heading: "Summary", description: "", required: true },
+      ],
+      draftSections: { summary: "Body." },
+    };
+    render(<Workspace document={doc} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /^export$/i }));
+
+    // Popover renders.
+    expect(
+      screen.getByRole("button", { name: /download markdown/i })
+    ).toBeInTheDocument();
+
+    // Validate was kicked off because there was no current report.
+    await waitFor(() =>
+      expect(
+        calls.some(
+          (c) => c.method === "POST" && c.url.endsWith("/api/validate")
+        )
+      ).toBe(true)
+    );
+  });
+
+  it("with block-if-missing ON and a fresh failing report, export actions are disabled and failing checks are listed", async () => {
+    installFetch((input) => {
+      const url = String(input);
+      if (url.endsWith("/api/documents")) return { documents: [] };
+      if (url.endsWith("/api/templates")) return { templates: [] };
+      if (url.endsWith("/api/validate")) {
+        return {
+          report: {
+            structure: [{ outlineId: "summary", status: "present" }],
+            questions: [{ checkId: "c1", status: "missing" }],
+            coverageScore: {
+              checksAnswered: 0,
+              checksTotal: 1,
+              sectionsPresent: 1,
+              sectionsTotal: 1,
+            },
+          },
+        };
+      }
+      return {};
+    });
+
+    const doc = {
+      ...newDocument("doc-1", "2026-04-30T00:00:00.000Z"),
+      outline: [
+        { id: "summary", heading: "Summary", description: "", required: true },
+      ],
+      checks: [{ id: "c1", question: "What happened?" }],
+      checksConfig: {
+        evaluateAfterEveryGeneration: true,
+        blockExportIfMissing: true,
+      },
+      draftSections: { summary: "Body." },
+    };
+    render(<Workspace document={doc} />);
+
+    // Run validate first so the popover opens with a fresh report.
+    fireEvent.click(screen.getByRole("button", { name: /^validate$/i }));
+    await waitFor(() =>
+      expect(screen.getByTestId("coverage-score")).toBeInTheDocument()
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /^export$/i }));
+
+    expect(
+      screen.getByRole("button", { name: /download markdown/i })
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: /download plain text/i })
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: /copy to clipboard/i })
+    ).toBeDisabled();
+
+    // Failing-check question text appears in the blocked notice.
+    const notice = screen.getByTestId("export-blocked-notice");
+    expect(notice).toHaveTextContent(/What happened\?/);
+  });
+});
