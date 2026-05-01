@@ -1,7 +1,5 @@
-// LLM model boundary. V1 ships only this interface plus a deterministic stub.
-// Slice 002 (Validation) and Slice 006 (Generation) will swap in a real
-// Anthropic-backed implementation behind the same interface — see
-// docs/decisions.md §"LLM provider".
+// LLM model boundary. V1 ships this interface, a deterministic stub for
+// tests, and a real Anthropic-backed provider used in production.
 //
 // The shape mirrors the Anthropic Messages API (system + user/assistant turns
 // → text). Provider-neutral enough that swapping is one file.
@@ -49,12 +47,97 @@ export function createScriptedProvider(
   };
 }
 
-// Process-singleton provider. Swap the factory here in slice 002/006 to wire
-// up the real Anthropic provider; callers stay unchanged.
+// Anthropic-backed provider. Lazy-loaded so the SDK only initializes when
+// we actually need it — tests that inject via `setDefaultProviderForTesting`
+// never touch this code path.
+//
+// Model default is a Sonnet (fast + cheap enough for per-section prompts).
+// Override via `model` or the `ANTHROPIC_MODEL` env var when wiring routes.
+const ANTHROPIC_DEFAULT_MODEL = "claude-sonnet-4-5";
+
+export interface AnthropicProviderOptions {
+  apiKey: string;
+  model?: string;
+  maxTokens?: number;
+}
+
+export function createAnthropicProvider(
+  options: AnthropicProviderOptions
+): LlmProvider {
+  const model = options.model ?? ANTHROPIC_DEFAULT_MODEL;
+  const maxTokens = options.maxTokens ?? 2048;
+  // Lazy import keeps the SDK out of the test/jsdom hot path.
+  let clientPromise: Promise<{
+    messages: {
+      create: (body: AnthropicCreateBody) => Promise<AnthropicResponse>;
+    };
+  }> | null = null;
+  async function getClient() {
+    if (!clientPromise) {
+      clientPromise = import("@anthropic-ai/sdk").then((mod) => {
+        const Anthropic = mod.default;
+        return new Anthropic({ apiKey: options.apiKey }) as unknown as {
+          messages: {
+            create: (body: AnthropicCreateBody) => Promise<AnthropicResponse>;
+          };
+        };
+      });
+    }
+    return clientPromise;
+  }
+  return {
+    async complete(request: LlmRequest): Promise<string> {
+      const client = await getClient();
+      const response = await client.messages.create({
+        model,
+        max_tokens: maxTokens,
+        system: request.systemPrompt,
+        messages: request.messages.map((m) => ({
+          role: m.role,
+          content: m.content,
+        })),
+      });
+      return response.content
+        .filter((block): block is { type: "text"; text: string } =>
+          block.type === "text"
+        )
+        .map((block) => block.text)
+        .join("\n");
+    },
+  };
+}
+
+// Minimal shape we depend on — kept here so the SDK's deep types don't leak
+// into our module. The actual SDK types are richer; we only need text
+// content blocks back.
+interface AnthropicCreateBody {
+  model: string;
+  max_tokens: number;
+  system: string;
+  messages: Array<{ role: "user" | "assistant"; content: string }>;
+}
+interface AnthropicResponse {
+  content: Array<{ type: string; text?: string }>;
+}
+
+// Process-singleton provider. When ANTHROPIC_API_KEY is set in the
+// environment, routes get the real provider; otherwise they fall back to
+// the deterministic stub so dev still runs without an API key (the stub
+// returns echo output, so generated drafts will be visibly stubby — that's
+// the dev signal that you forgot to set the key, not a bug).
 let _defaultProvider: LlmProvider | null = null;
 
 export function getDefaultProvider(): LlmProvider {
-  if (!_defaultProvider) _defaultProvider = createStubProvider();
+  if (_defaultProvider) return _defaultProvider;
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (apiKey) {
+    _defaultProvider = createAnthropicProvider({
+      apiKey,
+      model: process.env.ANTHROPIC_MODEL,
+    });
+  } else {
+    _defaultProvider = createStubProvider();
+  }
   return _defaultProvider;
 }
 

@@ -26,11 +26,13 @@ const LAST_OPENED_KEY = "aiwriter:lastOpenedDocId";
 const REVALIDATE_DEBOUNCE_MS = 600;
 
 type ValidationStatus = "idle" | "running" | "error";
+type GenerationStatus = "idle" | "running" | "error";
 
 export function Workspace({ document: initial }: WorkspaceProps) {
   const [document, setDocument] = useState<Document>(initial);
   const [report, setReport] = useState<ValidationReport | null>(null);
   const [status, setStatus] = useState<ValidationStatus>("idle");
+  const [genStatus, setGenStatus] = useState<GenerationStatus>("idle");
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Track the latest validate request so a slow/old response can't
@@ -156,6 +158,29 @@ export function Workspace({ document: initial }: WorkspaceProps) {
     [document, persistDocument, scheduleRevalidate]
   );
 
+  const handleGenerate = useCallback(async () => {
+    setGenStatus("running");
+    try {
+      const res = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ documentId: document.id }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const { document: next } = (await res.json()) as { document: Document };
+      setDocument(next);
+      setGenStatus("idle");
+      // PRD §"Checks Module": when "Evaluate after every generation" is ON
+      // (default), validate immediately so the rail flips to fresh statuses
+      // without an extra Validate click.
+      if (document.checksConfig.evaluateAfterEveryGeneration) {
+        void runValidate();
+      }
+    } catch {
+      setGenStatus("error");
+    }
+  }, [document.id, document.checksConfig.evaluateAfterEveryGeneration, runValidate]);
+
   const handleLoadFixture = useCallback(
     async (fixtureId: string) => {
       const fixture = getFixture(fixtureId);
@@ -177,7 +202,10 @@ export function Workspace({ document: initial }: WorkspaceProps) {
       <TopBar
         documentTitle={document.title}
         validating={status === "running"}
+        generating={genStatus === "running"}
+        canGenerate={document.outline.length > 0}
         onValidate={runValidate}
+        onGenerate={handleGenerate}
         onLoadFixture={handleLoadFixture}
       />
       <div className="flex flex-1 overflow-hidden">

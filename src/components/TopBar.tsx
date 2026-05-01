@@ -6,17 +6,22 @@ import { FIXTURES } from "@/lib/validation/fixtures";
 interface TopBarProps {
   documentTitle: string;
   validating: boolean;
+  generating: boolean;
+  canGenerate: boolean;
   onValidate: () => void;
+  onGenerate: () => void;
   onLoadFixture: (fixtureId: string) => void;
 }
 
-// Top bar shell — slice 002 enables the Validate button and adds a dev-only
-// "Load fixture" select so the right rail can be exercised before the
-// Spec/Outline/Checks editor panels exist (slices 003–005).
+// Top bar shell. Slice 002 enabled Validate; slice 006 enables Generate
+// Draft once the outline has at least one section to write into.
 export function TopBar({
   documentTitle,
   validating,
+  generating,
+  canGenerate,
   onValidate,
+  onGenerate,
   onLoadFixture,
 }: TopBarProps) {
   const [template, setTemplate] = useState("");
@@ -67,11 +72,16 @@ export function TopBar({
         </button>
         <button
           type="button"
-          disabled
-          className="rounded border border-neutral-300 bg-neutral-100 px-3 py-1 text-sm text-neutral-400"
-          title="Available in slice 006"
+          onClick={onGenerate}
+          disabled={generating || !canGenerate}
+          title={
+            canGenerate
+              ? undefined
+              : "Add at least one outline section to generate."
+          }
+          className="rounded border border-neutral-300 bg-white px-3 py-1 text-sm hover:bg-neutral-100 disabled:bg-neutral-100 disabled:text-neutral-400"
         >
-          Generate Draft
+          {generating ? "Generating…" : "Generate Draft"}
         </button>
         <button
           type="button"

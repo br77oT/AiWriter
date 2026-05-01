@@ -380,6 +380,217 @@ describe("Workspace checks persistence", () => {
   });
 });
 
+describe("Workspace generation flow", () => {
+  it("Generate Draft is disabled until the outline has at least one section", () => {
+    const empty = newDocument("doc-empty", "2026-04-29T00:00:00.000Z");
+    render(<Workspace document={empty} />);
+    expect(
+      screen.getByRole("button", { name: /generate draft/i })
+    ).toBeDisabled();
+
+    cleanup();
+
+    const withOutline = {
+      ...newDocument("doc-2", "2026-04-29T00:00:00.000Z"),
+      outline: [
+        { id: "summary", heading: "Summary", description: "", required: true },
+      ],
+    };
+    render(<Workspace document={withOutline} />);
+    expect(
+      screen.getByRole("button", { name: /generate draft/i })
+    ).toBeEnabled();
+  });
+
+  it("clicking Generate Draft POSTs /api/generate and applies the returned draft", async () => {
+    const calls: Array<{ method: string; url: string }> = [];
+    installFetch((input, init) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+      calls.push({ method, url });
+      if (url.endsWith("/api/documents")) return { documents: [] };
+      if (url.endsWith("/api/generate")) {
+        return {
+          document: {
+            ...newDocument("doc-1", "2026-04-29T00:00:00.000Z"),
+            outline: [
+              {
+                id: "summary",
+                heading: "Summary",
+                description: "",
+                required: true,
+              },
+            ],
+            draftSections: { summary: "Generated summary prose." },
+          },
+          draftSections: { summary: "Generated summary prose." },
+        };
+      }
+      if (url.endsWith("/api/validate")) {
+        return {
+          report: {
+            structure: [],
+            questions: [],
+            coverageScore: {
+              checksAnswered: 0,
+              checksTotal: 0,
+              sectionsPresent: 0,
+              sectionsTotal: 0,
+            },
+          },
+        };
+      }
+      return {};
+    });
+
+    const doc = {
+      ...newDocument("doc-1", "2026-04-29T00:00:00.000Z"),
+      outline: [
+        { id: "summary", heading: "Summary", description: "", required: true },
+      ],
+    };
+    render(<Workspace document={doc} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /generate draft/i }));
+
+    await waitFor(() =>
+      expect(
+        calls.some(
+          (c) => c.method === "POST" && c.url.endsWith("/api/generate")
+        )
+      ).toBe(true)
+    );
+
+    await waitFor(() =>
+      expect(
+        screen.getByLabelText(/Draft text for Summary/) as HTMLTextAreaElement
+      ).toHaveValue("Generated summary prose.")
+    );
+  });
+
+  it("auto-validates after Generate when 'evaluate after every generation' is ON (default)", async () => {
+    const calls: Array<{ method: string; url: string }> = [];
+    installFetch((input, init) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+      calls.push({ method, url });
+      if (url.endsWith("/api/documents")) return { documents: [] };
+      if (url.endsWith("/api/generate")) {
+        return {
+          document: {
+            ...newDocument("doc-1", "2026-04-29T00:00:00.000Z"),
+            outline: [
+              {
+                id: "summary",
+                heading: "Summary",
+                description: "",
+                required: true,
+              },
+            ],
+            draftSections: { summary: "Generated summary prose." },
+          },
+        };
+      }
+      if (url.endsWith("/api/validate")) {
+        return {
+          report: {
+            structure: [],
+            questions: [],
+            coverageScore: {
+              checksAnswered: 0,
+              checksTotal: 0,
+              sectionsPresent: 0,
+              sectionsTotal: 0,
+            },
+          },
+        };
+      }
+      return {};
+    });
+
+    const doc = {
+      ...newDocument("doc-1", "2026-04-29T00:00:00.000Z"),
+      outline: [
+        { id: "summary", heading: "Summary", description: "", required: true },
+      ],
+      // evaluateAfterEveryGeneration default is true.
+    };
+    render(<Workspace document={doc} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /generate draft/i }));
+
+    await waitFor(() =>
+      expect(
+        calls.some(
+          (c) => c.method === "POST" && c.url.endsWith("/api/validate")
+        )
+      ).toBe(true)
+    );
+  });
+
+  it("does NOT auto-validate after Generate when 'evaluate after every generation' is OFF", async () => {
+    const calls: Array<{ method: string; url: string }> = [];
+    installFetch((input, init) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+      calls.push({ method, url });
+      if (url.endsWith("/api/documents")) return { documents: [] };
+      if (url.endsWith("/api/generate")) {
+        return {
+          document: {
+            ...newDocument("doc-1", "2026-04-29T00:00:00.000Z"),
+            outline: [
+              {
+                id: "summary",
+                heading: "Summary",
+                description: "",
+                required: true,
+              },
+            ],
+            draftSections: { summary: "Generated summary prose." },
+            checksConfig: {
+              evaluateAfterEveryGeneration: false,
+              blockExportIfMissing: false,
+            },
+          },
+        };
+      }
+      return {};
+    });
+
+    const doc = {
+      ...newDocument("doc-1", "2026-04-29T00:00:00.000Z"),
+      outline: [
+        { id: "summary", heading: "Summary", description: "", required: true },
+      ],
+      checksConfig: {
+        evaluateAfterEveryGeneration: false,
+        blockExportIfMissing: false,
+      },
+    };
+    render(<Workspace document={doc} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /generate draft/i }));
+
+    await waitFor(() =>
+      expect(
+        calls.some(
+          (c) => c.method === "POST" && c.url.endsWith("/api/generate")
+        )
+      ).toBe(true)
+    );
+
+    // Settle any microtasks chained from the generate response, then assert
+    // no validate request fired.
+    await new Promise((r) => setTimeout(r, 0));
+    expect(
+      calls.filter(
+        (c) => c.method === "POST" && c.url.endsWith("/api/validate")
+      )
+    ).toEqual([]);
+  });
+});
+
 describe("Workspace spec persistence", () => {
   it("editing a spec field PUTs the document with the new spec", async () => {
     const calls: Array<{ method: string; url: string; body?: unknown }> = [];
