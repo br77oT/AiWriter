@@ -434,6 +434,65 @@ describe("POST /api/autofix — invariants and validation", () => {
     expect(after.checks).toEqual(before.checks);
   });
 
+  it("records an 'Auto-fix: <mode>' version when sections are regenerated (slice 011)", async () => {
+    const store = getDefaultStore();
+    const created = store.create();
+    const doc = store.update(created.id, (d) => ({
+      ...d,
+      outline: [SUMMARY, TIMELINE],
+      checks: [],
+      // Force a structurally-thin section so the planner has work.
+      draftSections: {
+        summary:
+          "An extensive summary that runs well past twenty-five words so the " +
+          "structural evaluator considers it present rather than thin, with " +
+          "enough content that the autofix flow does not treat it as a target.",
+        timeline: "Brief.",
+      },
+    }));
+
+    await autofixPOST(
+      new Request("http://t/", {
+        method: "POST",
+        body: JSON.stringify({ documentId: doc.id, mode: "structure" }),
+      })
+    );
+
+    const persisted = store.get(doc.id)!;
+    expect(persisted.versions.map((v) => v.label)).toEqual([
+      "Auto-fix: structure",
+    ]);
+    expect(persisted.versions[0].draftSections.timeline).toBe(
+      "Regenerated text for Timeline."
+    );
+  });
+
+  it("does NOT record a version when no sections needed regeneration", async () => {
+    const store = getDefaultStore();
+    const created = store.create();
+    const doc = store.update(created.id, (d) => ({
+      ...d,
+      outline: [SUMMARY],
+      checks: [],
+      draftSections: {
+        summary:
+          "An extensive summary that runs well past twenty-five words so the " +
+          "structural evaluator considers it present rather than thin, with " +
+          "enough content that the autofix flow does not treat it as a target.",
+      },
+    }));
+
+    await autofixPOST(
+      new Request("http://t/", {
+        method: "POST",
+        body: JSON.stringify({ documentId: doc.id, mode: "structure" }),
+      })
+    );
+
+    const persisted = store.get(doc.id)!;
+    expect(persisted.versions).toEqual([]);
+  });
+
   it("404s on unknown document id", async () => {
     const res = await autofixPOST(
       new Request("http://t/", {

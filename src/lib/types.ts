@@ -49,6 +49,10 @@ export interface ValidationReport {
 export interface Version {
   id: string;
   timestamp: string;
+  // Short human-readable event tag — e.g. "Generate", "Rewrite: Impact",
+  // "Auto-fix: questions", "Validate", "Restore". Rendered in the version
+  // history sidebar; not load-bearing for diffing or restore.
+  label: string;
   draftSections: Record<string, string>;
   validationReport: ValidationReport | null;
 }

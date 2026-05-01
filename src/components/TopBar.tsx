@@ -12,11 +12,13 @@ interface TopBarProps {
   templates: Template[];
   selectedTemplateId: string | null;
   canSaveAsTemplate: boolean;
+  versionCount: number;
   onValidate: () => void;
   onGenerate: () => void;
   onLoadFixture: (fixtureId: string) => void;
   onSelectTemplate: (templateId: string) => void;
   onSaveAsTemplate: () => void;
+  onOpenHistory: () => void;
 }
 
 // Top bar shell. Slice 009 enables the Template selector (was placeholder)
@@ -30,11 +32,13 @@ export function TopBar({
   templates,
   selectedTemplateId,
   canSaveAsTemplate,
+  versionCount,
   onValidate,
   onGenerate,
   onLoadFixture,
   onSelectTemplate,
   onSaveAsTemplate,
+  onOpenHistory,
 }: TopBarProps) {
   const [fixture, setFixture] = useState("");
 
@@ -91,6 +95,19 @@ export function TopBar({
           className="rounded border border-neutral-300 bg-white px-3 py-1 text-sm hover:bg-neutral-100 disabled:bg-neutral-100 disabled:text-neutral-400"
         >
           Save as template…
+        </button>
+        <button
+          type="button"
+          onClick={onOpenHistory}
+          disabled={versionCount === 0}
+          title={
+            versionCount === 0
+              ? "Run Generate, Validate, Rewrite, or Auto-fix to record a version."
+              : undefined
+          }
+          className="rounded border border-neutral-300 bg-white px-3 py-1 text-sm hover:bg-neutral-100 disabled:bg-neutral-100 disabled:text-neutral-400"
+        >
+          History{versionCount > 0 ? ` (${versionCount})` : ""}
         </button>
         <button
           type="button"

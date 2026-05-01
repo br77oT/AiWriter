@@ -1379,6 +1379,137 @@ describe("Workspace template flow (slice 009)", () => {
   });
 });
 
+describe("Workspace version history flow (slice 011)", () => {
+  it("History button is disabled when versions is empty and enabled once a version exists", () => {
+    const empty = newDocument("doc-1", "2026-04-30T00:00:00.000Z");
+    render(<Workspace document={empty} />);
+    expect(screen.getByRole("button", { name: /^history/i })).toBeDisabled();
+
+    cleanup();
+
+    const withVersion = {
+      ...newDocument("doc-2", "2026-04-30T00:00:00.000Z"),
+      versions: [
+        {
+          id: "v1",
+          label: "Generate",
+          timestamp: "2026-04-30T01:00:00.000Z",
+          draftSections: { summary: "old text" },
+          validationReport: null,
+        },
+      ],
+    };
+    render(<Workspace document={withVersion} />);
+    expect(screen.getByRole("button", { name: /^history/i })).toBeEnabled();
+  });
+
+  it("clicking History opens the panel; clicking Restore POSTs the restore endpoint and applies the returned doc", async () => {
+    const calls: Array<{ method: string; url: string }> = [];
+    installFetch((input, init) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+      calls.push({ method, url });
+      if (url.endsWith("/api/documents")) return { documents: [] };
+      if (url.endsWith("/api/templates")) return { templates: [] };
+      if (url.includes("/restore")) {
+        return {
+          document: {
+            ...newDocument("doc-1", "2026-04-30T00:00:00.000Z"),
+            outline: [
+              {
+                id: "summary",
+                heading: "Summary",
+                description: "",
+                required: true,
+              },
+            ],
+            draftSections: { summary: "Restored old text." },
+            versions: [
+              {
+                id: "v1",
+                label: "Generate",
+                timestamp: "2026-04-30T01:00:00.000Z",
+                draftSections: { summary: "Restored old text." },
+                validationReport: null,
+              },
+              {
+                id: "v2",
+                label: "Restore: Generate",
+                timestamp: "2026-04-30T02:00:00.000Z",
+                draftSections: { summary: "Restored old text." },
+                validationReport: null,
+              },
+            ],
+          },
+        };
+      }
+      if (url.endsWith("/api/validate")) {
+        return {
+          report: {
+            structure: [],
+            questions: [],
+            coverageScore: {
+              checksAnswered: 0,
+              checksTotal: 0,
+              sectionsPresent: 0,
+              sectionsTotal: 0,
+            },
+          },
+        };
+      }
+      return {};
+    });
+
+    const doc = {
+      ...newDocument("doc-1", "2026-04-30T00:00:00.000Z"),
+      outline: [
+        { id: "summary", heading: "Summary", description: "", required: true },
+      ],
+      draftSections: { summary: "Current text." },
+      versions: [
+        {
+          id: "v1",
+          label: "Generate",
+          timestamp: "2026-04-30T01:00:00.000Z",
+          draftSections: { summary: "Restored old text." },
+          validationReport: null,
+        },
+      ],
+    };
+    render(<Workspace document={doc} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /^history/i }));
+
+    // Panel opens.
+    expect(
+      screen.getByRole("dialog", { name: /version history/i })
+    ).toBeInTheDocument();
+
+    fireEvent.click(
+      within(screen.getByTestId("version-row")).getByRole("button", {
+        name: /^restore$/i,
+      })
+    );
+
+    await waitFor(() =>
+      expect(
+        calls.some(
+          (c) =>
+            c.method === "POST" &&
+            c.url.endsWith(`/api/documents/${doc.id}/versions/v1/restore`)
+        )
+      ).toBe(true)
+    );
+
+    // After restore, the live draft reflects the restored text.
+    await waitFor(() =>
+      expect(
+        screen.getByLabelText(/Draft text for Summary/) as HTMLTextAreaElement
+      ).toHaveValue("Restored old text.")
+    );
+  });
+});
+
 describe("Workspace spec persistence", () => {
   it("editing a spec field PUTs the document with the new spec", async () => {
     const calls: Array<{ method: string; url: string; body?: unknown }> = [];

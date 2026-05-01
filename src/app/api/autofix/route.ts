@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getDefaultStore } from "@/lib/document-store";
 import { generateSection } from "@/lib/generation";
 import { validate } from "@/lib/validation";
+import { recordVersion } from "@/lib/versions";
 import type { Document, ValidationReport } from "@/lib/types";
 
 // POST /api/autofix
@@ -90,10 +91,16 @@ export async function POST(req: Request) {
 
   let updated = doc;
   if (Object.keys(regenerated).length > 0) {
-    updated = store.update(documentId, (existing) => ({
-      ...existing,
-      draftSections: { ...existing.draftSections, ...regenerated },
-    }));
+    updated = store.update(documentId, (existing) => {
+      const next = {
+        ...existing,
+        draftSections: { ...existing.draftSections, ...regenerated },
+      };
+      // The pre-fix report we computed above is no longer current after
+      // regenerating sections; the Workspace re-runs validate() afterwards
+      // and that call records the post-fix report on its own version.
+      return recordVersion(next, `Auto-fix: ${mode}`, null);
+    });
   }
 
   return NextResponse.json({

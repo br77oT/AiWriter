@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
 import { getDefaultStore } from "@/lib/document-store";
 import { validate } from "@/lib/validation";
+import { recordVersion } from "@/lib/versions";
 
-// POST /api/validate { documentId } → ValidationReport
-// Persists nothing on its own — slice 011 adds versioning later.
+// POST /api/validate { documentId } → { report, document }
+//
+// Slice 011 wires this route into version history: every on-demand validate
+// snapshots the (unchanged) draft + the fresh report, so users can see how
+// validation status moved over time without having to also regenerate.
 export async function POST(req: Request) {
   let body: { documentId?: string } = {};
   try {
@@ -27,5 +31,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
   const report = await validate(doc.draftSections, doc.outline, doc.checks);
-  return NextResponse.json({ report });
+  const updated = store.update(documentId, (existing) =>
+    recordVersion(existing, "Validate", report)
+  );
+  return NextResponse.json({ report, document: updated });
 }

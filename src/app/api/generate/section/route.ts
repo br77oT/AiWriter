@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getDefaultStore } from "@/lib/document-store";
 import { generateSection, type SectionMode, type PreserveFlags } from "@/lib/generation";
+import { recordVersion } from "@/lib/versions";
 
 // POST /api/generate/section
 //   { documentId, outlineId, mode: "rewrite" | "expand", instruction?, preserve? }
@@ -84,13 +85,19 @@ export async function POST(req: Request) {
     }
   );
 
-  const updated = store.update(documentId, (existing) => ({
-    ...existing,
-    draftSections: {
-      ...existing.draftSections,
-      [outlineId]: sectionText,
-    },
-  }));
+  const heading =
+    doc.outline.find((s) => s.id === outlineId)?.heading ?? outlineId;
+  const verb = mode === "rewrite" ? "Rewrite" : "Expand";
+  const updated = store.update(documentId, (existing) => {
+    const next = {
+      ...existing,
+      draftSections: {
+        ...existing.draftSections,
+        [outlineId]: sectionText,
+      },
+    };
+    return recordVersion(next, `${verb}: ${heading}`, null);
+  });
 
   return NextResponse.json({
     document: updated,

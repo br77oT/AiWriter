@@ -58,6 +58,32 @@ describe("POST /api/validate", () => {
     });
   });
 
+  it("records a 'Validate' version including the fresh report (slice 011)", async () => {
+    const store = (await import("@/lib/document-store")).getDefaultStore();
+    const created = store.create();
+    store.update(created.id, (doc) => ({
+      ...doc,
+      outline: [
+        { id: "summary", heading: "Summary", description: "", required: true },
+      ],
+      checks: [{ id: "c1", question: "What happened?" }],
+      draftSections: { summary: "Pipe burst at 03:15 in the basement." },
+    }));
+
+    const res = await validatePOST(
+      new Request("http://t/", {
+        method: "POST",
+        body: JSON.stringify({ documentId: created.id }),
+      })
+    );
+    expect(res.status).toBe(200);
+    const persisted = store.get(created.id)!;
+    expect(persisted.versions).toHaveLength(1);
+    expect(persisted.versions[0].label).toBe("Validate");
+    expect(persisted.versions[0].validationReport).not.toBeNull();
+    expect(persisted.versions[0].validationReport!.questions).toHaveLength(1);
+  });
+
   it("404s on unknown document id", async () => {
     const res = await validatePOST(
       new Request("http://t/", {

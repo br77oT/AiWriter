@@ -140,6 +140,33 @@ describe("POST /api/generate", () => {
     expect(after.draftSections.summary).toBe("Drafted: Summary");
   });
 
+  it("records a 'Generate' version with the new draftSections (slice 011)", async () => {
+    const store = getDefaultStore();
+    const created = store.create();
+    store.update(created.id, (doc) => ({
+      ...doc,
+      outline: [
+        { id: "summary", heading: "Summary", description: "", required: true },
+      ],
+    }));
+
+    await generatePOST(
+      new Request("http://t/", {
+        method: "POST",
+        body: JSON.stringify({ documentId: created.id }),
+      })
+    );
+
+    const persisted = store.get(created.id)!;
+    expect(persisted.versions).toHaveLength(1);
+    expect(persisted.versions[0].label).toBe("Generate");
+    expect(persisted.versions[0].draftSections).toEqual({
+      summary: "Drafted: Summary",
+    });
+    // Generate runs before validation; report is null on this version.
+    expect(persisted.versions[0].validationReport).toBeNull();
+  });
+
   it("404s on unknown document id", async () => {
     const res = await generatePOST(
       new Request("http://t/", {

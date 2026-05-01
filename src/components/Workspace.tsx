@@ -18,6 +18,7 @@ import { DraftPane } from "./panes/DraftPane";
 import { ValidationRail, type AutofixMode } from "./panes/ValidationRail";
 import { SectionRewriteModal } from "./SectionRewriteModal";
 import { TemplatePickerModal } from "./TemplatePickerModal";
+import { VersionHistoryPanel } from "./VersionHistoryPanel";
 import { getFixture } from "@/lib/validation/fixtures";
 import type { PreserveFlags, SectionMode } from "@/lib/generation";
 import {
@@ -57,6 +58,10 @@ export function Workspace({ document: initial }: WorkspaceProps) {
   const [lockedSkipped, setLockedSkipped] = useState<string[]>([]);
   const [templates, setTemplates] = useState<Template[]>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [restoringVersionId, setRestoringVersionId] = useState<string | null>(
+    null
+  );
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Track the latest validate request so a slow/old response can't
@@ -100,12 +105,16 @@ export function Workspace({ document: initial }: WorkspaceProps) {
         body: JSON.stringify({ documentId: document.id }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const { report: next } = (await res.json()) as {
+      const { report: next, document: nextDoc } = (await res.json()) as {
         report: ValidationReport;
+        // Slice 011: validate now snapshots a Version, so the route also
+        // returns the updated document.
+        document?: Document;
       };
       // Stale response — a newer request has been kicked off since.
       if (seq !== requestSeqRef.current) return;
       setReport(next);
+      if (nextDoc) setDocument(nextDoc);
       setStatus("idle");
     } catch {
       if (seq !== requestSeqRef.current) return;
@@ -357,6 +366,34 @@ export function Workspace({ document: initial }: WorkspaceProps) {
 
   const handleOpenPicker = useCallback(() => setPickerOpen(true), []);
 
+  const handleOpenHistory = useCallback(() => setHistoryOpen(true), []);
+  const handleCloseHistory = useCallback(() => setHistoryOpen(false), []);
+
+  const handleRestoreVersion = useCallback(
+    async (versionId: string) => {
+      setRestoringVersionId(versionId);
+      try {
+        const res = await fetch(
+          `/api/documents/${document.id}/versions/${versionId}/restore`,
+          { method: "POST" }
+        );
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const { document: next } = (await res.json()) as { document: Document };
+        setDocument(next);
+        setHistoryOpen(false);
+        // The restored draft may flip validation statuses — re-run so the rail
+        // reflects the new state.
+        void runValidate();
+      } catch {
+        // Surface failure passively for V1: the modal stays open and the user
+        // can retry. A future polish pass could render an inline error.
+      } finally {
+        setRestoringVersionId(null);
+      }
+    },
+    [document.id, runValidate]
+  );
+
   const handleLoadFixture = useCallback(
     async (fixtureId: string) => {
       const fixture = getFixture(fixtureId);
@@ -383,11 +420,13 @@ export function Workspace({ document: initial }: WorkspaceProps) {
         templates={templates}
         selectedTemplateId={document.templateId}
         canSaveAsTemplate={!isDocumentEmpty(document)}
+        versionCount={document.versions.length}
         onValidate={runValidate}
         onGenerate={handleGenerate}
         onLoadFixture={handleLoadFixture}
         onSelectTemplate={handleSelectTemplate}
         onSaveAsTemplate={handleSaveAsTemplate}
+        onOpenHistory={handleOpenHistory}
       />
       <div className="flex flex-1 overflow-hidden">
         <Sidebar
@@ -442,6 +481,14 @@ export function Workspace({ document: initial }: WorkspaceProps) {
           busy={false}
           onCancel={() => setPickerOpen(false)}
           onPick={handleSelectTemplate}
+        />
+      )}
+      {historyOpen && (
+        <VersionHistoryPanel
+          document={document}
+          busyVersionId={restoringVersionId}
+          onClose={handleCloseHistory}
+          onRestore={handleRestoreVersion}
         />
       )}
     </div>

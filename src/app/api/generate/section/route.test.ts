@@ -149,6 +149,63 @@ describe("POST /api/generate/section", () => {
     expect(after.checks).toEqual(before.checks);
   });
 
+  it("records 'Rewrite: <heading>' / 'Expand: <heading>' versions (slice 011)", async () => {
+    const doc = seedDoc();
+    await sectionPOST(
+      new Request("http://t/", {
+        method: "POST",
+        body: JSON.stringify({
+          documentId: doc.id,
+          outlineId: "impact",
+          mode: "rewrite",
+        }),
+      })
+    );
+    await sectionPOST(
+      new Request("http://t/", {
+        method: "POST",
+        body: JSON.stringify({
+          documentId: doc.id,
+          outlineId: "summary",
+          mode: "expand",
+        }),
+      })
+    );
+    const persisted = getDefaultStore().get(doc.id)!;
+    expect(persisted.versions.map((v) => v.label)).toEqual([
+      "Rewrite: Impact",
+      "Expand: Summary",
+    ]);
+    // Each version snapshots the draft *as of that event*.
+    expect(persisted.versions[0].draftSections.impact).toBe(
+      "New text for Impact."
+    );
+    expect(persisted.versions[1].draftSections.summary).toBe(
+      "New text for Summary."
+    );
+  });
+
+  it("does NOT record a version when refusing a locked-section rewrite (409)", async () => {
+    const doc = seedDoc();
+    getDefaultStore().update(doc.id, (d) => ({
+      ...d,
+      lockedSectionIds: ["impact"],
+    }));
+    const before = getDefaultStore().get(doc.id)!;
+    await sectionPOST(
+      new Request("http://t/", {
+        method: "POST",
+        body: JSON.stringify({
+          documentId: doc.id,
+          outlineId: "impact",
+          mode: "rewrite",
+        }),
+      })
+    );
+    const after = getDefaultStore().get(doc.id)!;
+    expect(after.versions).toEqual(before.versions);
+  });
+
   it("404s on unknown document id", async () => {
     const res = await sectionPOST(
       new Request("http://t/", {

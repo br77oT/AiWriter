@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getDefaultStore } from "@/lib/document-store";
 import { generate } from "@/lib/generation";
+import { recordVersion } from "@/lib/versions";
 
 // POST /api/generate { documentId } → { document, draftSections }
 //
@@ -50,10 +51,14 @@ export async function POST(req: Request) {
     }
   }
 
-  const updated = store.update(documentId, (existing) => ({
-    ...existing,
-    draftSections: merged,
-  }));
+  const updated = store.update(documentId, (existing) => {
+    const next = { ...existing, draftSections: merged };
+    // Slice 011: snapshot on every full-draft generation. validationReport is
+    // null at this point — the workspace will fire /api/validate next when
+    // checksConfig.evaluateAfterEveryGeneration is on, which records its own
+    // version including the report.
+    return recordVersion(next, "Generate", null);
+  });
 
   return NextResponse.json({
     document: updated,
