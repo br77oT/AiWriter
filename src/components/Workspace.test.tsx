@@ -591,6 +591,223 @@ describe("Workspace generation flow", () => {
   });
 });
 
+describe("Workspace section rewrite + lock (slice 007)", () => {
+  it("toggling Lock on a section PUTs lockedSectionIds with the new id", async () => {
+    const calls: Array<{ method: string; url: string; body?: unknown }> = [];
+    installFetch((input, init) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+      const body = init?.body ? JSON.parse(String(init.body)) : undefined;
+      calls.push({ method, url, body });
+      if (url.endsWith("/api/documents")) return { documents: [] };
+      return {};
+    });
+
+    const doc = {
+      ...newDocument("doc-1", "2026-04-30T00:00:00.000Z"),
+      outline: [
+        { id: "summary", heading: "Summary", description: "", required: true },
+      ],
+    };
+    render(<Workspace document={doc} />);
+
+    fireEvent.click(screen.getByLabelText(/Lock section "Summary"/));
+
+    await waitFor(() =>
+      expect(
+        calls.some(
+          (c) =>
+            c.method === "PUT" &&
+            c.url.endsWith(`/api/documents/${doc.id}`)
+        )
+      ).toBe(true)
+    );
+
+    const put = calls.find(
+      (c) =>
+        c.method === "PUT" && c.url.endsWith(`/api/documents/${doc.id}`)
+    )!;
+    expect(
+      (put.body as { document: { lockedSectionIds: string[] } }).document
+        .lockedSectionIds
+    ).toEqual(["summary"]);
+  });
+
+  it("clicking Rewrite opens the modal; submit posts to /api/generate/section and applies returned draft", async () => {
+    const calls: Array<{ method: string; url: string; body?: unknown }> = [];
+    installFetch((input, init) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+      const body = init?.body ? JSON.parse(String(init.body)) : undefined;
+      calls.push({ method, url, body });
+      if (url.endsWith("/api/documents")) return { documents: [] };
+      if (url.endsWith("/api/generate/section")) {
+        return {
+          document: {
+            ...newDocument("doc-1", "2026-04-30T00:00:00.000Z"),
+            outline: [
+              {
+                id: "impact",
+                heading: "Impact",
+                description: "",
+                required: true,
+              },
+            ],
+            draftSections: { impact: "Rewritten impact prose." },
+            checksConfig: {
+              evaluateAfterEveryGeneration: false,
+              blockExportIfMissing: false,
+            },
+          },
+          outlineId: "impact",
+          sectionText: "Rewritten impact prose.",
+        };
+      }
+      return {};
+    });
+
+    const doc = {
+      ...newDocument("doc-1", "2026-04-30T00:00:00.000Z"),
+      outline: [
+        { id: "impact", heading: "Impact", description: "", required: true },
+      ],
+      draftSections: { impact: "Original impact text." },
+      checksConfig: {
+        evaluateAfterEveryGeneration: false,
+        blockExportIfMissing: false,
+      },
+    };
+    render(<Workspace document={doc} />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /Rewrite section "Impact"/ })
+    );
+
+    // Modal opened.
+    expect(
+      screen.getByRole("heading", { name: /Rewrite section: Impact/ })
+    ).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText(/Instruction/i), {
+      target: { value: "Tighten the prose." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /^Rewrite$/ }));
+
+    await waitFor(() =>
+      expect(
+        calls.some(
+          (c) =>
+            c.method === "POST" && c.url.endsWith("/api/generate/section")
+        )
+      ).toBe(true)
+    );
+
+    const post = calls.find(
+      (c) => c.method === "POST" && c.url.endsWith("/api/generate/section")
+    )!;
+    const reqBody = post.body as {
+      documentId: string;
+      outlineId: string;
+      mode: string;
+      instruction: string;
+      preserve: {
+        heading: boolean;
+        facts: boolean;
+        tone: boolean;
+        otherSections: boolean;
+      };
+    };
+    expect(reqBody.outlineId).toBe("impact");
+    expect(reqBody.mode).toBe("rewrite");
+    expect(reqBody.instruction).toBe("Tighten the prose.");
+    expect(reqBody.preserve).toEqual({
+      heading: true,
+      facts: true,
+      tone: true,
+      otherSections: true,
+    });
+
+    await waitFor(() =>
+      expect(
+        screen.getByLabelText(/Draft text for Impact/) as HTMLTextAreaElement
+      ).toHaveValue("Rewritten impact prose.")
+    );
+  });
+
+  it("clicking Expand opens the modal in expand mode and submits with mode=expand", async () => {
+    const calls: Array<{ method: string; url: string; body?: unknown }> = [];
+    installFetch((input, init) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+      const body = init?.body ? JSON.parse(String(init.body)) : undefined;
+      calls.push({ method, url, body });
+      if (url.endsWith("/api/documents")) return { documents: [] };
+      if (url.endsWith("/api/generate/section")) {
+        return {
+          document: {
+            ...newDocument("doc-1", "2026-04-30T00:00:00.000Z"),
+            outline: [
+              {
+                id: "impact",
+                heading: "Impact",
+                description: "",
+                required: true,
+              },
+            ],
+            draftSections: { impact: "Expanded prose." },
+            checksConfig: {
+              evaluateAfterEveryGeneration: false,
+              blockExportIfMissing: false,
+            },
+          },
+          outlineId: "impact",
+          sectionText: "Expanded prose.",
+        };
+      }
+      return {};
+    });
+
+    const doc = {
+      ...newDocument("doc-1", "2026-04-30T00:00:00.000Z"),
+      outline: [
+        { id: "impact", heading: "Impact", description: "", required: true },
+      ],
+      draftSections: { impact: "Short impact." },
+      checksConfig: {
+        evaluateAfterEveryGeneration: false,
+        blockExportIfMissing: false,
+      },
+    };
+    render(<Workspace document={doc} />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /Expand section "Impact"/ })
+    );
+
+    expect(
+      screen.getByRole("heading", { name: /Expand section: Impact/ })
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /^Expand$/ }));
+
+    await waitFor(() =>
+      expect(
+        calls.some(
+          (c) =>
+            c.method === "POST" && c.url.endsWith("/api/generate/section")
+        )
+      ).toBe(true)
+    );
+
+    const post = calls.find(
+      (c) => c.method === "POST" && c.url.endsWith("/api/generate/section")
+    )!;
+    expect(
+      (post.body as { mode: string }).mode
+    ).toBe("expand");
+  });
+});
+
 describe("Workspace spec persistence", () => {
   it("editing a spec field PUTs the document with the new spec", async () => {
     const calls: Array<{ method: string; url: string; body?: unknown }> = [];

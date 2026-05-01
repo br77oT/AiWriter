@@ -5,13 +5,26 @@ import type { Document } from "@/lib/types";
 interface DraftPaneProps {
   document: Document;
   onDraftSectionChange: (outlineId: string, text: string) => void;
+  onLockToggle: (outlineId: string, locked: boolean) => void;
+  onRewrite: (outlineId: string) => void;
+  onExpand: (outlineId: string) => void;
 }
 
-// Slice 002: minimal per-section editor so the validation rail's incremental
-// re-run on draft edits has something to react to. The full draft editor and
-// section-level Generate / Lock / Rewrite affordances arrive in slices 006–007.
-export function DraftPane({ document, onDraftSectionChange }: DraftPaneProps) {
+// Per-section editor with Slice 007 affordances:
+// - Lock checkbox per section. Locked sections are skipped by full-draft
+//   regeneration and disabled in the rewrite/expand path (PRD §"Lock
+//   semantics are hard").
+// - Rewrite + Expand buttons open the Section Rewrite Modal preset for the
+//   appropriate mode.
+export function DraftPane({
+  document,
+  onDraftSectionChange,
+  onLockToggle,
+  onRewrite,
+  onExpand,
+}: DraftPaneProps) {
   const sections = document.outline;
+  const lockedIds = new Set(document.lockedSectionIds);
 
   return (
     <section
@@ -32,26 +45,63 @@ export function DraftPane({ document, onDraftSectionChange }: DraftPaneProps) {
         </p>
       ) : (
         <div className="space-y-4">
-          {sections.map((section) => (
-            <div key={section.id}>
-              <label className="mb-1 block text-sm font-medium text-neutral-800">
-                {section.heading}
-                {!section.required && (
-                  <span className="ml-1 text-xs text-neutral-400">
-                    (optional)
-                  </span>
-                )}
-              </label>
-              <textarea
-                aria-label={`Draft text for ${section.heading}`}
-                className="min-h-[6rem] w-full rounded border border-neutral-300 p-2 text-sm leading-relaxed"
-                value={document.draftSections[section.id] ?? ""}
-                onChange={(e) =>
-                  onDraftSectionChange(section.id, e.target.value)
-                }
-              />
-            </div>
-          ))}
+          {sections.map((section) => {
+            const locked = lockedIds.has(section.id);
+            return (
+              <div key={section.id}>
+                <div className="mb-1 flex items-center justify-between gap-2">
+                  <label className="text-sm font-medium text-neutral-800">
+                    {section.heading}
+                    {!section.required && (
+                      <span className="ml-1 text-xs text-neutral-400">
+                        (optional)
+                      </span>
+                    )}
+                  </label>
+                  <div className="flex items-center gap-2 text-xs">
+                    <button
+                      type="button"
+                      aria-label={`Rewrite section "${section.heading}"`}
+                      disabled={locked}
+                      onClick={() => onRewrite(section.id)}
+                      className="rounded border border-neutral-300 bg-white px-2 py-0.5 hover:bg-neutral-100 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-400"
+                    >
+                      Rewrite
+                    </button>
+                    <button
+                      type="button"
+                      aria-label={`Expand section "${section.heading}"`}
+                      disabled={locked}
+                      onClick={() => onExpand(section.id)}
+                      className="rounded border border-neutral-300 bg-white px-2 py-0.5 hover:bg-neutral-100 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-400"
+                    >
+                      Expand
+                    </button>
+                    <label className="flex items-center gap-1 text-neutral-600">
+                      <input
+                        type="checkbox"
+                        aria-label={`Lock section "${section.heading}"`}
+                        checked={locked}
+                        onChange={(e) =>
+                          onLockToggle(section.id, e.target.checked)
+                        }
+                      />
+                      Lock
+                    </label>
+                  </div>
+                </div>
+                <textarea
+                  aria-label={`Draft text for ${section.heading}`}
+                  className="min-h-[6rem] w-full rounded border border-neutral-300 p-2 text-sm leading-relaxed disabled:bg-neutral-100 disabled:text-neutral-500"
+                  value={document.draftSections[section.id] ?? ""}
+                  disabled={locked}
+                  onChange={(e) =>
+                    onDraftSectionChange(section.id, e.target.value)
+                  }
+                />
+              </div>
+            );
+          })}
         </div>
       )}
     </section>

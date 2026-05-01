@@ -16,7 +16,9 @@ import { OutlinePane } from "./panes/OutlinePane";
 import { ChecksPane } from "./panes/ChecksPane";
 import { DraftPane } from "./panes/DraftPane";
 import { ValidationRail } from "./panes/ValidationRail";
+import { SectionRewriteModal } from "./SectionRewriteModal";
 import { getFixture } from "@/lib/validation/fixtures";
+import type { PreserveFlags, SectionMode } from "@/lib/generation";
 
 interface WorkspaceProps {
   document: Document;
@@ -28,11 +30,21 @@ const REVALIDATE_DEBOUNCE_MS = 600;
 type ValidationStatus = "idle" | "running" | "error";
 type GenerationStatus = "idle" | "running" | "error";
 
+interface RewriteTarget {
+  outlineId: string;
+  heading: string;
+  mode: SectionMode;
+}
+
 export function Workspace({ document: initial }: WorkspaceProps) {
   const [document, setDocument] = useState<Document>(initial);
   const [report, setReport] = useState<ValidationReport | null>(null);
   const [status, setStatus] = useState<ValidationStatus>("idle");
   const [genStatus, setGenStatus] = useState<GenerationStatus>("idle");
+  const [rewriteTarget, setRewriteTarget] = useState<RewriteTarget | null>(
+    null
+  );
+  const [rewriteBusy, setRewriteBusy] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Track the latest validate request so a slow/old response can't
@@ -98,6 +110,7 @@ export function Workspace({ document: initial }: WorkspaceProps) {
             checksConfig: next.checksConfig,
             draftSections: next.draftSections,
             outlineFrozen: next.outlineFrozen,
+            lockedSectionIds: next.lockedSectionIds,
           },
         }),
       });
@@ -156,6 +169,64 @@ export function Workspace({ document: initial }: WorkspaceProps) {
       scheduleRevalidate();
     },
     [document, persistDocument, scheduleRevalidate]
+  );
+
+  const handleLockToggle = useCallback(
+    (outlineId: string, locked: boolean) => {
+      const without = document.lockedSectionIds.filter(
+        (id) => id !== outlineId
+      );
+      const lockedSectionIds = locked ? [...without, outlineId] : without;
+      void persistDocument({ ...document, lockedSectionIds });
+    },
+    [document, persistDocument]
+  );
+
+  const openRewriteModal = useCallback(
+    (mode: SectionMode) => (outlineId: string) => {
+      const section = document.outline.find((s) => s.id === outlineId);
+      if (!section) return;
+      setRewriteTarget({ outlineId, heading: section.heading, mode });
+    },
+    [document.outline]
+  );
+
+  const handleRewriteSubmit = useCallback(
+    async (payload: { instruction: string; preserve: PreserveFlags }) => {
+      if (!rewriteTarget) return;
+      setRewriteBusy(true);
+      try {
+        const res = await fetch("/api/generate/section", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            documentId: document.id,
+            outlineId: rewriteTarget.outlineId,
+            mode: rewriteTarget.mode,
+            instruction: payload.instruction,
+            preserve: payload.preserve,
+          }),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const { document: next } = (await res.json()) as { document: Document };
+        setDocument(next);
+        setRewriteTarget(null);
+        if (document.checksConfig.evaluateAfterEveryGeneration) {
+          void runValidate();
+        }
+      } catch {
+        // Surface errors with the modal still open so the user can retry or
+        // cancel; a future slice can render the error inline.
+      } finally {
+        setRewriteBusy(false);
+      }
+    },
+    [
+      document.id,
+      document.checksConfig.evaluateAfterEveryGeneration,
+      rewriteTarget,
+      runValidate,
+    ]
   );
 
   const handleGenerate = useCallback(async () => {
@@ -227,6 +298,9 @@ export function Workspace({ document: initial }: WorkspaceProps) {
           <DraftPane
             document={document}
             onDraftSectionChange={handleDraftSectionChange}
+            onLockToggle={handleLockToggle}
+            onRewrite={openRewriteModal("rewrite")}
+            onExpand={openRewriteModal("expand")}
           />
         </main>
         <ValidationRail
@@ -235,6 +309,15 @@ export function Workspace({ document: initial }: WorkspaceProps) {
           status={status}
         />
       </div>
+      {rewriteTarget && (
+        <SectionRewriteModal
+          sectionHeading={rewriteTarget.heading}
+          mode={rewriteTarget.mode}
+          busy={rewriteBusy}
+          onCancel={() => setRewriteTarget(null)}
+          onSubmit={handleRewriteSubmit}
+        />
+      )}
     </div>
   );
 }
