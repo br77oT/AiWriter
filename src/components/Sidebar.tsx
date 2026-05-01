@@ -19,7 +19,6 @@ export function Sidebar({
 }: SidebarProps) {
   const router = useRouter();
   const [docs, setDocs] = useState<DocumentSummary[]>([]);
-  const [creating, setCreating] = useState(false);
 
   useEffect(() => {
     fetch("/api/documents")
@@ -30,17 +29,12 @@ export function Sidebar({
       .catch(() => setDocs([]));
   }, [activeDocumentId]);
 
-  async function handleNewDocument() {
-    setCreating(true);
-    try {
-      const res = await fetch("/api/documents", { method: "POST" });
-      const { document } = (await res.json()) as {
-        document: { id: string };
-      };
-      router.push(`/documents/${document.id}`);
-    } finally {
-      setCreating(false);
-    }
+  // "New document" routes through the onboarding wizard rather than POSTing
+  // /api/documents directly. Per PRD user story 37 / issue 010 AC:
+  // "'New document' action goes through the wizard, not directly to a blank
+  // workspace." The wizard is responsible for creating + applying a template.
+  function handleNewDocument() {
+    router.push("/onboarding");
   }
 
   // Show built-ins first, then user-saved (TemplateStore.list() already
@@ -57,10 +51,9 @@ export function Sidebar({
         <button
           type="button"
           onClick={handleNewDocument}
-          disabled={creating}
-          className="w-full rounded bg-neutral-900 px-3 py-2 text-sm font-medium text-white hover:bg-neutral-800 disabled:bg-neutral-400"
+          className="w-full rounded bg-neutral-900 px-3 py-2 text-sm font-medium text-white hover:bg-neutral-800"
         >
-          {creating ? "Creating…" : "New document"}
+          New document
         </button>
       </div>
       <nav className="flex-1 overflow-y-auto p-2">

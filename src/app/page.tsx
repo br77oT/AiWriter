@@ -8,7 +8,10 @@ const LAST_OPENED_KEY = "aiwriter:lastOpenedDocId";
 // Root entry: resolve which document to land on. Order:
 // 1. localStorage `lastOpenedDocId` if it still exists in the API.
 // 2. First document in the list (newest first).
-// 3. Create a fresh blank document and route to it.
+// 3. Zero documents → route to the first-run onboarding wizard instead of
+//    creating a blank document. PRD user story 37 / issue 010 AC:
+//    "First-run state (no documents) routes to the onboarding wizard
+//    automatically."
 export default function HomePage() {
   const router = useRouter();
   const [status, setStatus] = useState("Opening your workspace…");
@@ -33,13 +36,7 @@ export default function HomePage() {
         return;
       }
 
-      setStatus("Creating your first document…");
-      const created = await fetch("/api/documents", { method: "POST" });
-      const { document } = (await created.json()) as {
-        document: { id: string };
-      };
-      if (cancelled) return;
-      router.replace(`/documents/${document.id}`);
+      router.replace("/onboarding");
     }
 
     resolveDestination().catch(() => {
