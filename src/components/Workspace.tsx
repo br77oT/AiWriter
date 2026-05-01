@@ -22,6 +22,7 @@ import { VersionHistoryPanel } from "./VersionHistoryPanel";
 import { ExportPopover } from "./ExportPopover";
 import { MobileWorkspaceLayout } from "./MobileWorkspaceLayout";
 import { useIsMobile } from "@/lib/useIsMobile";
+import { useReviewerMode } from "@/lib/useReviewerMode";
 import { getFixture } from "@/lib/validation/fixtures";
 import type { PreserveFlags, SectionMode } from "@/lib/generation";
 import {
@@ -67,7 +68,22 @@ export function Workspace({ document: initial }: WorkspaceProps) {
   );
   const [exportOpen, setExportOpen] = useState(false);
   const isMobile = useIsMobile();
+  const [reviewerMode, setReviewerMode] = useReviewerMode();
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Reviewer-mode initial-paint: seed the rail with the latest validation
+  // report captured on the document. PRD user story 39 calls for the rail
+  // to render fully, but reviewers cannot click Validate (it's a mutating
+  // action). Authors are unaffected — newDocument() carries no versions, so
+  // this lookup returns undefined and the existing "click Validate" path
+  // remains the cold-start behavior in author mode.
+  useEffect(() => {
+    if (!reviewerMode || report) return;
+    const latest = [...document.versions]
+      .reverse()
+      .find((v) => v.validationReport !== null);
+    if (latest && latest.validationReport) setReport(latest.validationReport);
+  }, [reviewerMode, report, document.versions]);
 
   // Track the latest validate request so a slow/old response can't
   // overwrite a newer one when typing fast.
@@ -433,10 +449,15 @@ export function Workspace({ document: initial }: WorkspaceProps) {
       templates={templates}
       onSelectTemplate={handleSelectTemplate}
       compact={isMobile}
+      readOnly={reviewerMode}
     />
   );
   const specPane = (
-    <SpecPane spec={document.spec} onSpecChange={handleSpecChange} />
+    <SpecPane
+      spec={document.spec}
+      onSpecChange={handleSpecChange}
+      readOnly={reviewerMode}
+    />
   );
   const outlinePane = (
     <OutlinePane
@@ -444,6 +465,7 @@ export function Workspace({ document: initial }: WorkspaceProps) {
       outlineFrozen={document.outlineFrozen}
       onOutlineChange={handleOutlineChange}
       onFrozenChange={handleFrozenChange}
+      readOnly={reviewerMode}
     />
   );
   const checksPane = (
@@ -453,6 +475,7 @@ export function Workspace({ document: initial }: WorkspaceProps) {
       onChecksChange={handleChecksChange}
       onChecksConfigChange={handleChecksConfigChange}
       onLoadTemplate={handleOpenPicker}
+      readOnly={reviewerMode}
     />
   );
   const draftPane = (
@@ -462,6 +485,7 @@ export function Workspace({ document: initial }: WorkspaceProps) {
       onLockToggle={handleLockToggle}
       onRewrite={openRewriteModal("rewrite")}
       onExpand={openRewriteModal("expand")}
+      readOnly={reviewerMode}
     />
   );
   const validationRail = (
@@ -471,7 +495,8 @@ export function Workspace({ document: initial }: WorkspaceProps) {
       status={status}
       autofixBusy={autofixStatus === "running"}
       lockedSkipped={lockedSkipped}
-      onAutofix={handleAutofix}
+      // Hide the auto-fix footer in reviewer mode by withholding the handler.
+      onAutofix={reviewerMode ? undefined : handleAutofix}
       compact={isMobile}
     />
   );
@@ -488,6 +513,7 @@ export function Workspace({ document: initial }: WorkspaceProps) {
         selectedTemplateId={document.templateId}
         canSaveAsTemplate={!isDocumentEmpty(document)}
         versionCount={document.versions.length}
+        reviewerMode={reviewerMode}
         onValidate={runValidate}
         onGenerate={handleGenerate}
         onLoadFixture={handleLoadFixture}
@@ -495,6 +521,7 @@ export function Workspace({ document: initial }: WorkspaceProps) {
         onSaveAsTemplate={handleSaveAsTemplate}
         onOpenHistory={handleOpenHistory}
         onOpenExport={handleOpenExport}
+        onToggleReviewerMode={setReviewerMode}
       />
       {isMobile ? (
         <MobileWorkspaceLayout
@@ -540,6 +567,7 @@ export function Workspace({ document: initial }: WorkspaceProps) {
           busyVersionId={restoringVersionId}
           onClose={handleCloseHistory}
           onRestore={handleRestoreVersion}
+          readOnly={reviewerMode}
         />
       )}
       {exportOpen && (

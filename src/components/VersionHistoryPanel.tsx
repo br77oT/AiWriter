@@ -13,6 +13,9 @@ interface VersionHistoryPanelProps {
   onClose: () => void;
   onRestore: (versionId: string) => void;
   busyVersionId?: string | null;
+  // Reviewer mode (slice 014): browse + diff are still allowed, but the
+  // Restore affordance is hidden in both list and single views.
+  readOnly?: boolean;
 }
 
 type View =
@@ -34,6 +37,7 @@ export function VersionHistoryPanel({
   onClose,
   onRestore,
   busyVersionId,
+  readOnly = false,
 }: VersionHistoryPanelProps) {
   const [view, setView] = useState<View>({ kind: "list" });
   const [selected, setSelected] = useState<string[]>([]);
@@ -95,6 +99,7 @@ export function VersionHistoryPanel({
             onCompare={openCompare}
             onRestore={onRestore}
             busyVersionId={busyVersionId}
+            readOnly={readOnly}
           />
         )}
 
@@ -106,6 +111,7 @@ export function VersionHistoryPanel({
             onBack={() => setView({ kind: "list" })}
             onRestore={() => onRestore(view.versionId)}
             busy={busyVersionId === view.versionId}
+            readOnly={readOnly}
           />
         )}
 
@@ -130,6 +136,7 @@ function ListView({
   onCompare,
   onRestore,
   busyVersionId,
+  readOnly,
 }: {
   versions: Version[];
   selected: string[];
@@ -138,6 +145,7 @@ function ListView({
   onCompare: () => void;
   onRestore: (id: string) => void;
   busyVersionId?: string | null;
+  readOnly: boolean;
 }) {
   if (versions.length === 0) {
     return (
@@ -194,14 +202,16 @@ function ListView({
               >
                 View
               </button>
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => onRestore(v.id)}
-                className="rounded border border-neutral-300 bg-white px-3 py-1 hover:bg-neutral-100 disabled:bg-neutral-100 disabled:text-neutral-400"
-              >
-                {busy ? "Restoring…" : "Restore"}
-              </button>
+              {!readOnly && (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => onRestore(v.id)}
+                  className="rounded border border-neutral-300 bg-white px-3 py-1 hover:bg-neutral-100 disabled:bg-neutral-100 disabled:text-neutral-400"
+                >
+                  {busy ? "Restoring…" : "Restore"}
+                </button>
+              )}
             </li>
           );
         })}
@@ -217,6 +227,7 @@ function SingleView({
   onBack,
   onRestore,
   busy,
+  readOnly,
 }: {
   version: Version;
   headingFor: (id: string) => string;
@@ -224,6 +235,7 @@ function SingleView({
   onBack: () => void;
   onRestore: () => void;
   busy: boolean;
+  readOnly: boolean;
 }) {
   // Render in outline order first, then anything left over (sections that
   // were in the version but no longer exist in the live outline). This keeps
@@ -250,14 +262,18 @@ function SingleView({
             · {formatTimestamp(version.timestamp)}
           </span>
         </span>
-        <button
-          type="button"
-          disabled={busy}
-          onClick={onRestore}
-          className="rounded border border-neutral-300 bg-white px-3 py-1 hover:bg-neutral-100 disabled:bg-neutral-100 disabled:text-neutral-400"
-        >
-          {busy ? "Restoring…" : "Restore this version"}
-        </button>
+        {readOnly ? (
+          <span aria-hidden className="w-12" />
+        ) : (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={onRestore}
+            className="rounded border border-neutral-300 bg-white px-3 py-1 hover:bg-neutral-100 disabled:bg-neutral-100 disabled:text-neutral-400"
+          >
+            {busy ? "Restoring…" : "Restore this version"}
+          </button>
+        )}
       </div>
       <div className="flex-1 space-y-4 overflow-y-auto p-4">
         {orderedIds.length === 0 && (

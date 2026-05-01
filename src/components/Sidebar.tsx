@@ -13,6 +13,10 @@ interface SidebarProps {
   // When true, the sidebar fills its parent rather than imposing a fixed
   // width. Used by the mobile layout where the drawer owns the width.
   compact?: boolean;
+  // Reviewer mode (slice 014): hides the Templates list (selecting one
+  // mutates the doc) but keeps Recent drafts navigation + New document
+  // (which routes to /onboarding without touching the current doc).
+  readOnly?: boolean;
 }
 
 export function Sidebar({
@@ -20,6 +24,7 @@ export function Sidebar({
   templates,
   onSelectTemplate,
   compact = false,
+  readOnly = false,
 }: SidebarProps) {
   const router = useRouter();
   const [docs, setDocs] = useState<DocumentSummary[]>([]);
@@ -90,31 +95,13 @@ export function Sidebar({
           ))}
         </ul>
 
-        <h2 className="px-2 pb-1 pt-4 text-xs font-semibold uppercase tracking-wide text-neutral-500">
-          Templates
-        </h2>
-        <ul className="space-y-1">
-          {builtInTemplates.map((t) => (
-            <li key={t.id}>
-              <button
-                type="button"
-                onClick={() => onSelectTemplate(t.id)}
-                aria-label={`Load template ${t.name}`}
-                className="block w-full truncate rounded px-2 py-1 text-left text-sm hover:bg-neutral-50"
-              >
-                {t.name}
-              </button>
-            </li>
-          ))}
-        </ul>
-
-        {userTemplates.length > 0 && (
+        {!readOnly && (
           <>
-            <h3 className="px-2 pb-1 pt-3 text-[10px] font-semibold uppercase tracking-wide text-neutral-400">
-              Saved
-            </h3>
+            <h2 className="px-2 pb-1 pt-4 text-xs font-semibold uppercase tracking-wide text-neutral-500">
+              Templates
+            </h2>
             <ul className="space-y-1">
-              {userTemplates.map((t) => (
+              {builtInTemplates.map((t) => (
                 <li key={t.id}>
                   <button
                     type="button"
@@ -127,6 +114,28 @@ export function Sidebar({
                 </li>
               ))}
             </ul>
+
+            {userTemplates.length > 0 && (
+              <>
+                <h3 className="px-2 pb-1 pt-3 text-[10px] font-semibold uppercase tracking-wide text-neutral-400">
+                  Saved
+                </h3>
+                <ul className="space-y-1">
+                  {userTemplates.map((t) => (
+                    <li key={t.id}>
+                      <button
+                        type="button"
+                        onClick={() => onSelectTemplate(t.id)}
+                        aria-label={`Load template ${t.name}`}
+                        className="block w-full truncate rounded px-2 py-1 text-left text-sm hover:bg-neutral-50"
+                      >
+                        {t.name}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
           </>
         )}
       </nav>

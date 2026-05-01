@@ -8,6 +8,7 @@ interface ChecksPaneProps {
   onChecksChange: (next: Check[]) => void;
   onChecksConfigChange: (next: ChecksConfig) => void;
   onLoadTemplate: () => void;
+  readOnly?: boolean;
 }
 
 // Controlled component: never owns checks/config state. Workspace holds the
@@ -20,6 +21,7 @@ export function ChecksPane({
   onChecksChange,
   onChecksConfigChange,
   onLoadTemplate,
+  readOnly = false,
 }: ChecksPaneProps) {
   function handleAdd() {
     onChecksChange([...checks, { id: makeId(), question: "" }]);
@@ -50,7 +52,8 @@ export function ChecksPane({
         <button
           type="button"
           onClick={onLoadTemplate}
-          className="rounded border border-neutral-300 bg-white px-2 py-0.5 text-xs text-neutral-700 hover:bg-neutral-100"
+          disabled={readOnly}
+          className="rounded border border-neutral-300 bg-white px-2 py-0.5 text-xs text-neutral-700 hover:bg-neutral-100 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-400"
         >
           Load template
         </button>
@@ -75,18 +78,21 @@ export function ChecksPane({
                 type="text"
                 aria-label={`Question ${idx + 1}`}
                 value={check.question}
+                disabled={readOnly}
                 onChange={(e) => handleEdit(check.id, e.target.value)}
                 placeholder="What question must the draft answer?"
-                className="flex-1 rounded border border-neutral-300 bg-white px-2 py-1 text-sm"
+                className="flex-1 rounded border border-neutral-300 bg-white px-2 py-1 text-sm disabled:bg-neutral-100 disabled:text-neutral-500"
               />
-              <button
-                type="button"
-                aria-label={`Remove check "${check.question || `question ${idx + 1}`}"`}
-                onClick={() => handleRemove(check.id)}
-                className="rounded border border-neutral-300 bg-white px-2 py-1 text-xs text-neutral-600 hover:text-red-600"
-              >
-                Remove
-              </button>
+              {!readOnly && (
+                <button
+                  type="button"
+                  aria-label={`Remove check "${check.question || `question ${idx + 1}`}"`}
+                  onClick={() => handleRemove(check.id)}
+                  className="rounded border border-neutral-300 bg-white px-2 py-1 text-xs text-neutral-600 hover:text-red-600"
+                >
+                  Remove
+                </button>
+              )}
             </li>
           ))}
         </ol>
@@ -95,7 +101,8 @@ export function ChecksPane({
       <button
         type="button"
         onClick={handleAdd}
-        className="self-start rounded border border-neutral-300 bg-white px-3 py-1 text-sm hover:bg-neutral-100"
+        disabled={readOnly}
+        className="self-start rounded border border-neutral-300 bg-white px-3 py-1 text-sm hover:bg-neutral-100 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-400"
       >
         + Add check
       </button>
@@ -106,6 +113,7 @@ export function ChecksPane({
             type="checkbox"
             aria-label="Evaluate after every generation"
             checked={checksConfig.evaluateAfterEveryGeneration}
+            disabled={readOnly}
             onChange={(e) =>
               onChecksConfigChange({
                 ...checksConfig,
@@ -121,6 +129,7 @@ export function ChecksPane({
             type="checkbox"
             aria-label="Block export if any check is missing"
             checked={checksConfig.blockExportIfMissing}
+            disabled={readOnly}
             onChange={(e) =>
               onChecksConfigChange({
                 ...checksConfig,

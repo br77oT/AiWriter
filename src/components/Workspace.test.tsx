@@ -1781,3 +1781,154 @@ describe("Workspace responsive layout (slice 013)", () => {
     ).toBeInTheDocument();
   });
 });
+
+describe("Workspace reviewer mode (slice 014)", () => {
+  const ORIGINAL_URL = "http://localhost/";
+
+  afterEach(() => {
+    window.history.replaceState({}, "", ORIGINAL_URL);
+  });
+
+  function reviewerDoc(id = "doc-rev") {
+    return {
+      ...newDocument(id, "2026-04-30T00:00:00.000Z"),
+      outline: [
+        { id: "summary", heading: "Summary", description: "", required: true },
+      ],
+      checks: [{ id: "c1", question: "What happened?" }],
+      draftSections: { summary: "Pipe burst at 03:15." },
+    };
+  }
+
+  it("toggling 'Reviewer mode' on disables panel inputs and hides mutating top-bar actions", () => {
+    const doc = reviewerDoc();
+    render(<Workspace document={doc} />);
+
+    // Author mode (default): mutating actions are reachable.
+    expect(screen.getByRole("button", { name: /generate draft/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^validate$/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^export$/i })).toBeInTheDocument();
+    expect(screen.getByLabelText(/^goal$/i)).not.toBeDisabled();
+    expect(screen.getByLabelText(/Draft text for Summary/)).not.toBeDisabled();
+
+    // Flip the toggle.
+    fireEvent.click(screen.getByLabelText(/^reviewer mode$/i));
+
+    // Top-bar mutating actions are gone.
+    expect(screen.queryByRole("button", { name: /generate draft/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^validate$/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^export$/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^save$/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /save as template/i })).toBeNull();
+    expect(screen.queryByRole("combobox", { name: /^template$/i })).toBeNull();
+    expect(screen.queryByRole("combobox", { name: /load fixture/i })).toBeNull();
+
+    // Panel inputs are disabled.
+    expect(screen.getByLabelText(/^goal$/i)).toBeDisabled();
+    expect(screen.getByLabelText(/^tone$/i)).toBeDisabled();
+    expect(screen.getByLabelText(/^audience$/i)).toBeDisabled();
+    expect(screen.getByLabelText(/Heading for section 1/)).toBeDisabled();
+    expect(screen.getByLabelText(/Question 1/)).toBeDisabled();
+    expect(screen.getByLabelText(/Draft text for Summary/)).toBeDisabled();
+
+    // Add buttons stay visible but disabled (clear-affordance, not-clickable);
+    // per-section mutating affordances (Lock, Rewrite, Expand) are removed.
+    expect(screen.getByRole("button", { name: /add section/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /add check/i })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: /Rewrite section "Summary"/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Expand section "Summary"/ })).toBeNull();
+    expect(screen.queryByLabelText(/Lock section "Summary"/)).toBeNull();
+
+    // Validation rail still renders, but the autofix footer is hidden.
+    expect(screen.getByRole("heading", { name: /^validation$/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Auto-fix missing items/ })).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: /Regenerate only failed sections/ })
+    ).toBeNull();
+  });
+
+  it("loading the page with ?mode=reviewer lands directly in reviewer mode", () => {
+    window.history.replaceState({}, "", "/documents/doc-rev?mode=reviewer");
+
+    const doc = reviewerDoc();
+    render(<Workspace document={doc} />);
+
+    expect(screen.getByLabelText(/^reviewer mode$/i)).toBeChecked();
+    expect(screen.getByTestId("reviewer-mode-badge")).toBeInTheDocument();
+    expect(screen.getByLabelText(/^goal$/i)).toBeDisabled();
+    expect(screen.queryByRole("button", { name: /generate draft/i })).toBeNull();
+  });
+
+  it("seeds the rail with the latest captured validation report on first paint", () => {
+    window.history.replaceState({}, "", "/documents/doc-rev?mode=reviewer");
+
+    const doc = {
+      ...reviewerDoc(),
+      versions: [
+        {
+          id: "v1",
+          label: "Validate",
+          timestamp: "2026-04-30T01:00:00.000Z",
+          draftSections: { summary: "Pipe burst at 03:15." },
+          validationReport: {
+            structure: [{ outlineId: "summary", status: "present" as const }],
+            questions: [
+              {
+                checkId: "c1",
+                status: "answered" as const,
+                evidence: "Pipe burst at 03:15.",
+              },
+            ],
+            coverageScore: {
+              checksAnswered: 1,
+              checksTotal: 1,
+              sectionsPresent: 1,
+              sectionsTotal: 1,
+            },
+          },
+        },
+      ],
+    };
+    render(<Workspace document={doc} />);
+
+    // Coverage badge is rendered without the user clicking Validate.
+    expect(screen.getByTestId("coverage-score").textContent).toMatch(/1\/1 checks/);
+    // Evidence quote appears in the rail (the same text also lives in the
+    // draft textarea, so use getAllByText and assert at least one match).
+    expect(screen.getAllByText(/Pipe burst at 03:15/).length).toBeGreaterThan(0);
+  });
+
+  it("History stays browsable but Restore is hidden in reviewer mode", () => {
+    window.history.replaceState({}, "", "/documents/doc-rev?mode=reviewer");
+
+    const doc = {
+      ...reviewerDoc(),
+      versions: [
+        {
+          id: "v1",
+          label: "Generate",
+          timestamp: "2026-04-30T01:00:00.000Z",
+          draftSections: { summary: "Older text." },
+          validationReport: null,
+        },
+      ],
+    };
+    render(<Workspace document={doc} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /^history/i }));
+    expect(
+      screen.getByRole("dialog", { name: /version history/i })
+    ).toBeInTheDocument();
+
+    // Row + View are present, Restore is gone.
+    const row = screen.getByTestId("version-row");
+    expect(within(row).getByRole("button", { name: /^view$/i })).toBeInTheDocument();
+    expect(within(row).queryByRole("button", { name: /^restore$/i })).toBeNull();
+
+    // From the single view, Restore is also hidden.
+    fireEvent.click(within(row).getByRole("button", { name: /^view$/i }));
+    expect(
+      screen.queryByRole("button", { name: /restore this version/i })
+    ).toBeNull();
+  });
+});

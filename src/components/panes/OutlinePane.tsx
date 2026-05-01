@@ -14,6 +14,7 @@ interface OutlinePaneProps {
   outlineFrozen: boolean;
   onOutlineChange: (next: OutlineSection[]) => void;
   onFrozenChange: (next: boolean) => void;
+  readOnly?: boolean;
 }
 
 // Controlled component: never owns outline state. Workspace holds the
@@ -26,7 +27,11 @@ export function OutlinePane({
   outlineFrozen,
   onOutlineChange,
   onFrozenChange,
+  readOnly = false,
 }: OutlinePaneProps) {
+  // Reviewer mode is at least as restrictive as outline-frozen: no edits, no
+  // reorder, no add/remove, freeze toggle itself is disabled.
+  const lockEdits = outlineFrozen || readOnly;
   const [dragId, setDragId] = useState<string | null>(null);
 
   function handleAdd() {
@@ -59,12 +64,12 @@ export function OutlinePane({
   }
 
   function handleDragStart(id: string) {
-    if (outlineFrozen) return;
+    if (lockEdits) return;
     setDragId(id);
   }
 
   function handleDrop(targetId: string) {
-    if (outlineFrozen || dragId == null || dragId === targetId) {
+    if (lockEdits || dragId == null || dragId === targetId) {
       setDragId(null);
       return;
     }
@@ -92,6 +97,7 @@ export function OutlinePane({
             type="checkbox"
             aria-label="Freeze outline"
             checked={outlineFrozen}
+            disabled={readOnly}
             onChange={(e) => onFrozenChange(e.target.checked)}
           />
           Freeze
@@ -108,10 +114,10 @@ export function OutlinePane({
           {outline.map((section, idx) => (
             <li
               key={section.id}
-              draggable={!outlineFrozen}
+              draggable={!lockEdits}
               onDragStart={() => handleDragStart(section.id)}
               onDragOver={(e) => {
-                if (!outlineFrozen) e.preventDefault();
+                if (!lockEdits) e.preventDefault();
               }}
               onDrop={() => handleDrop(section.id)}
               className="rounded border border-neutral-200 bg-neutral-50 p-2"
@@ -125,7 +131,7 @@ export function OutlinePane({
                     type="text"
                     aria-label={`Heading for section ${idx + 1}`}
                     value={section.heading}
-                    disabled={outlineFrozen}
+                    disabled={lockEdits}
                     onChange={(e) =>
                       handlePatch(section.id, { heading: e.target.value })
                     }
@@ -136,11 +142,12 @@ export function OutlinePane({
                     type="text"
                     aria-label={`Description for ${section.heading || `section ${idx + 1}`}`}
                     value={section.description}
+                    disabled={readOnly}
                     onChange={(e) =>
                       handlePatch(section.id, { description: e.target.value })
                     }
                     placeholder="Short description (used as a hint by Generation)"
-                    className="w-full rounded border border-neutral-300 bg-white px-2 py-1 text-xs text-neutral-700"
+                    className="w-full rounded border border-neutral-300 bg-white px-2 py-1 text-xs text-neutral-700 disabled:bg-neutral-100 disabled:text-neutral-500"
                   />
                 </div>
                 <span
@@ -160,6 +167,7 @@ export function OutlinePane({
                     type="checkbox"
                     aria-label={`Required for ${section.heading || `section ${idx + 1}`}`}
                     checked={section.required}
+                    disabled={readOnly}
                     onChange={(e) =>
                       handlePatch(section.id, { required: e.target.checked })
                     }
@@ -170,7 +178,7 @@ export function OutlinePane({
                   <button
                     type="button"
                     aria-label={`Move section ${section.heading || idx + 1} up`}
-                    disabled={outlineFrozen || idx === 0}
+                    disabled={lockEdits || idx === 0}
                     onClick={() => handleMove(idx, idx - 1)}
                     className="rounded border border-neutral-300 bg-white px-1.5 py-0.5 text-xs hover:bg-neutral-100 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-400"
                   >
@@ -179,7 +187,7 @@ export function OutlinePane({
                   <button
                     type="button"
                     aria-label={`Move section ${section.heading || idx + 1} down`}
-                    disabled={outlineFrozen || idx === outline.length - 1}
+                    disabled={lockEdits || idx === outline.length - 1}
                     onClick={() => handleMove(idx, idx + 1)}
                     className="rounded border border-neutral-300 bg-white px-1.5 py-0.5 text-xs hover:bg-neutral-100 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-400"
                   >
@@ -188,7 +196,7 @@ export function OutlinePane({
                   <button
                     type="button"
                     aria-label={`Remove section ${section.heading || idx + 1}`}
-                    disabled={outlineFrozen}
+                    disabled={lockEdits}
                     onClick={() => handleRemove(section.id)}
                     className="rounded border border-neutral-300 bg-white px-1.5 py-0.5 text-xs text-neutral-600 hover:text-red-600 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-400"
                   >
@@ -204,7 +212,7 @@ export function OutlinePane({
       <button
         type="button"
         onClick={handleAdd}
-        disabled={outlineFrozen}
+        disabled={lockEdits}
         className="self-start rounded border border-neutral-300 bg-white px-3 py-1 text-sm hover:bg-neutral-100 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-400"
       >
         + Add section
