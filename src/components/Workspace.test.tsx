@@ -5,6 +5,7 @@ import {
   cleanup,
   fireEvent,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { Workspace } from "./Workspace";
 import { newDocument, type ValidationReport } from "@/lib/types";
@@ -49,6 +50,7 @@ beforeEach(() => {
   installFetch((input) => {
     const url = String(input);
     if (url.endsWith("/api/documents")) return { documents: [] };
+    if (url.endsWith("/api/templates")) return { templates: [] };
     return {};
   });
 });
@@ -85,7 +87,7 @@ describe("Workspace shell", () => {
     render(<Workspace document={doc} />);
 
     expect(
-      screen.getByRole("button", { name: /save/i })
+      screen.getByRole("button", { name: /^save$/i })
     ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: /generate draft/i })
@@ -1064,6 +1066,315 @@ describe("Workspace autofix flow (slice 008)", () => {
       expect(screen.getByTestId("autofix-locked-notice")).toHaveTextContent(
         /Impact/
       )
+    );
+  });
+});
+
+describe("Workspace template flow (slice 009)", () => {
+  const incidentTemplate = {
+    id: "incident-report",
+    name: "Incident Report",
+    builtIn: true,
+    bundle: {
+      spec: {
+        goal: "Document the incident.",
+        tone: "neutral",
+        audience: "team",
+        mustInclude: ["timeline"],
+        mustAvoid: ["blame"],
+      },
+      outline: [
+        { id: "summary", heading: "Summary", description: "", required: true },
+        { id: "timeline", heading: "Timeline", description: "", required: true },
+      ],
+      checks: [
+        { id: "c1", question: "What happened?" },
+        { id: "c2", question: "When did it happen?" },
+      ],
+    },
+  };
+
+  it("selecting a template on an empty document populates Spec/Outline/Checks via PUT (no confirm)", async () => {
+    const calls: Array<{ method: string; url: string; body?: unknown }> = [];
+    installFetch((input, init) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+      const body = init?.body ? JSON.parse(String(init.body)) : undefined;
+      calls.push({ method, url, body });
+      if (url.endsWith("/api/documents")) return { documents: [] };
+      if (url.endsWith("/api/templates")) {
+        return { templates: [incidentTemplate] };
+      }
+      return {};
+    });
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+
+    const doc = newDocument("doc-1", "2026-04-30T00:00:00.000Z");
+    render(<Workspace document={doc} />);
+
+    // Wait for the templates fetch.
+    await waitFor(() =>
+      expect(
+        calls.some((c) => c.method === "GET" && c.url.endsWith("/api/templates"))
+      ).toBe(true)
+    );
+
+    fireEvent.change(screen.getByRole("combobox", { name: /^template$/i }), {
+      target: { value: "incident-report" },
+    });
+
+    await waitFor(() =>
+      expect(
+        calls.some(
+          (c) =>
+            c.method === "PUT" &&
+            c.url.endsWith(`/api/documents/${doc.id}`)
+        )
+      ).toBe(true)
+    );
+
+    // Empty document → no confirm prompt.
+    expect(confirmSpy).not.toHaveBeenCalled();
+
+    const put = calls.find(
+      (c) => c.method === "PUT" && c.url.endsWith(`/api/documents/${doc.id}`)
+    )!;
+    const body = put.body as {
+      document: {
+        spec: { goal: string };
+        outline: Array<{ id: string }>;
+        checks: Array<{ id: string }>;
+      };
+    };
+    expect(body.document.spec.goal).toBe("Document the incident.");
+    expect(body.document.outline.map((s) => s.id)).toEqual([
+      "summary",
+      "timeline",
+    ]);
+    expect(body.document.checks.map((c) => c.id)).toEqual(["c1", "c2"]);
+
+    confirmSpy.mockRestore();
+  });
+
+  it("selecting a template on a non-empty document prompts for confirmation; cancel skips the change", async () => {
+    const calls: Array<{ method: string; url: string; body?: unknown }> = [];
+    installFetch((input, init) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+      const body = init?.body ? JSON.parse(String(init.body)) : undefined;
+      calls.push({ method, url, body });
+      if (url.endsWith("/api/documents")) return { documents: [] };
+      if (url.endsWith("/api/templates")) {
+        return { templates: [incidentTemplate] };
+      }
+      return {};
+    });
+    const confirmSpy = vi
+      .spyOn(window, "confirm")
+      .mockReturnValueOnce(false);
+
+    const doc = {
+      ...newDocument("doc-1", "2026-04-30T00:00:00.000Z"),
+      outline: [
+        { id: "x", heading: "Existing", description: "", required: true },
+      ],
+    };
+    render(<Workspace document={doc} />);
+
+    await waitFor(() =>
+      expect(
+        calls.some((c) => c.method === "GET" && c.url.endsWith("/api/templates"))
+      ).toBe(true)
+    );
+
+    const putCountBefore = calls.filter(
+      (c) => c.method === "PUT" && c.url.endsWith(`/api/documents/${doc.id}`)
+    ).length;
+
+    fireEvent.change(screen.getByRole("combobox", { name: /^template$/i }), {
+      target: { value: "incident-report" },
+    });
+
+    expect(confirmSpy).toHaveBeenCalledTimes(1);
+    // Cancelled → no PUT for the template change.
+    const putCountAfter = calls.filter(
+      (c) => c.method === "PUT" && c.url.endsWith(`/api/documents/${doc.id}`)
+    ).length;
+    expect(putCountAfter).toBe(putCountBefore);
+
+    confirmSpy.mockRestore();
+  });
+
+  it("Save as template POSTs /api/templates with the current spec/outline/checks bundle", async () => {
+    const calls: Array<{ method: string; url: string; body?: unknown }> = [];
+    installFetch((input, init) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+      const body = init?.body ? JSON.parse(String(init.body)) : undefined;
+      calls.push({ method, url, body });
+      if (url.endsWith("/api/documents")) return { documents: [] };
+      if (url.endsWith("/api/templates") && method === "GET") {
+        return { templates: [] };
+      }
+      if (url.endsWith("/api/templates") && method === "POST") {
+        return {
+          template: {
+            id: "user-1",
+            name: "My standup",
+            builtIn: false,
+            bundle: (body as { bundle: unknown }).bundle,
+          },
+        };
+      }
+      return {};
+    });
+    const promptSpy = vi
+      .spyOn(window, "prompt")
+      .mockReturnValueOnce("My standup");
+
+    const doc = {
+      ...newDocument("doc-1", "2026-04-30T00:00:00.000Z"),
+      spec: {
+        goal: "Daily standup",
+        tone: "concise",
+        audience: "team",
+        mustInclude: ["yesterday"],
+        mustAvoid: [],
+      },
+      outline: [
+        { id: "y", heading: "Yesterday", description: "", required: true },
+      ],
+      checks: [{ id: "c1", question: "What did you do yesterday?" }],
+    };
+    render(<Workspace document={doc} />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /save as template/i })
+    );
+
+    await waitFor(() =>
+      expect(
+        calls.some(
+          (c) => c.method === "POST" && c.url.endsWith("/api/templates")
+        )
+      ).toBe(true)
+    );
+
+    const post = calls.find(
+      (c) => c.method === "POST" && c.url.endsWith("/api/templates")
+    )!;
+    const reqBody = post.body as {
+      name: string;
+      bundle: {
+        spec: { goal: string };
+        outline: Array<{ id: string }>;
+        checks: Array<{ id: string }>;
+      };
+    };
+    expect(reqBody.name).toBe("My standup");
+    expect(reqBody.bundle.spec.goal).toBe("Daily standup");
+    expect(reqBody.bundle.outline.map((s) => s.id)).toEqual(["y"]);
+    expect(reqBody.bundle.checks.map((c) => c.id)).toEqual(["c1"]);
+
+    promptSpy.mockRestore();
+  });
+
+  it("Save as template button is disabled when the document is empty", () => {
+    installFetch((input) => {
+      const url = String(input);
+      if (url.endsWith("/api/documents")) return { documents: [] };
+      if (url.endsWith("/api/templates")) return { templates: [] };
+      return {};
+    });
+
+    const doc = newDocument("doc-empty", "2026-04-30T00:00:00.000Z");
+    render(<Workspace document={doc} />);
+
+    expect(
+      screen.getByRole("button", { name: /save as template/i })
+    ).toBeDisabled();
+  });
+
+  it("ChecksPane Load template opens the picker; picking a template applies it via PUT", async () => {
+    const calls: Array<{ method: string; url: string; body?: unknown }> = [];
+    installFetch((input, init) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+      const body = init?.body ? JSON.parse(String(init.body)) : undefined;
+      calls.push({ method, url, body });
+      if (url.endsWith("/api/documents")) return { documents: [] };
+      if (url.endsWith("/api/templates")) {
+        return { templates: [incidentTemplate] };
+      }
+      return {};
+    });
+
+    const doc = newDocument("doc-1", "2026-04-30T00:00:00.000Z");
+    render(<Workspace document={doc} />);
+
+    await waitFor(() =>
+      expect(
+        calls.some(
+          (c) => c.method === "GET" && c.url.endsWith("/api/templates")
+        )
+      ).toBe(true)
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /^load template$/i })
+    );
+
+    // Picker modal opens.
+    const dialog = screen.getByRole("dialog", { name: /load a template/i });
+    expect(dialog).toBeInTheDocument();
+
+    // Scope to the dialog so we don't collide with the same-labelled button
+    // that lives in the Sidebar Templates list.
+    fireEvent.click(
+      within(dialog).getByRole("button", {
+        name: /load template incident report/i,
+      })
+    );
+
+    await waitFor(() =>
+      expect(
+        calls.some(
+          (c) =>
+            c.method === "PUT" &&
+            c.url.endsWith(`/api/documents/${doc.id}`)
+        )
+      ).toBe(true)
+    );
+
+    const put = calls.find(
+      (c) =>
+        c.method === "PUT" && c.url.endsWith(`/api/documents/${doc.id}`)
+    )!;
+    expect(
+      (put.body as { document: { templateId: string } }).document.templateId
+    ).toBe("incident-report");
+  });
+
+  it("Sidebar Templates section lists built-in templates with a Load button", async () => {
+    installFetch((input) => {
+      const url = String(input);
+      if (url.endsWith("/api/documents")) return { documents: [] };
+      if (url.endsWith("/api/templates")) {
+        return { templates: [incidentTemplate] };
+      }
+      return {};
+    });
+
+    const doc = newDocument("doc-1", "2026-04-30T00:00:00.000Z");
+    render(<Workspace document={doc} />);
+
+    // Wait for the templates fetch + render.
+    await waitFor(() =>
+      expect(
+        screen
+          .getAllByRole("button", { name: /load template incident report/i })
+          .length
+      ).toBeGreaterThan(0)
     );
   });
 });

@@ -4,12 +4,19 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { DocumentSummary } from "@/lib/types";
+import type { Template } from "@/lib/templates";
 
 interface SidebarProps {
   activeDocumentId: string;
+  templates: Template[];
+  onSelectTemplate: (templateId: string) => void;
 }
 
-export function Sidebar({ activeDocumentId }: SidebarProps) {
+export function Sidebar({
+  activeDocumentId,
+  templates,
+  onSelectTemplate,
+}: SidebarProps) {
   const router = useRouter();
   const [docs, setDocs] = useState<DocumentSummary[]>([]);
   const [creating, setCreating] = useState(false);
@@ -35,6 +42,11 @@ export function Sidebar({ activeDocumentId }: SidebarProps) {
       setCreating(false);
     }
   }
+
+  // Show built-ins first, then user-saved (TemplateStore.list() already
+  // returns them in this order).
+  const userTemplates = templates.filter((t) => !t.builtIn);
+  const builtInTemplates = templates.filter((t) => t.builtIn);
 
   return (
     <aside
@@ -77,12 +89,46 @@ export function Sidebar({ activeDocumentId }: SidebarProps) {
             </li>
           ))}
         </ul>
+
         <h2 className="px-2 pb-1 pt-4 text-xs font-semibold uppercase tracking-wide text-neutral-500">
           Templates
         </h2>
-        <p className="px-2 py-1 text-sm text-neutral-400">
-          Wired up in slice 009.
-        </p>
+        <ul className="space-y-1">
+          {builtInTemplates.map((t) => (
+            <li key={t.id}>
+              <button
+                type="button"
+                onClick={() => onSelectTemplate(t.id)}
+                aria-label={`Load template ${t.name}`}
+                className="block w-full truncate rounded px-2 py-1 text-left text-sm hover:bg-neutral-50"
+              >
+                {t.name}
+              </button>
+            </li>
+          ))}
+        </ul>
+
+        {userTemplates.length > 0 && (
+          <>
+            <h3 className="px-2 pb-1 pt-3 text-[10px] font-semibold uppercase tracking-wide text-neutral-400">
+              Saved
+            </h3>
+            <ul className="space-y-1">
+              {userTemplates.map((t) => (
+                <li key={t.id}>
+                  <button
+                    type="button"
+                    onClick={() => onSelectTemplate(t.id)}
+                    aria-label={`Load template ${t.name}`}
+                    className="block w-full truncate rounded px-2 py-1 text-left text-sm hover:bg-neutral-50"
+                  >
+                    {t.name}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
       </nav>
     </aside>
   );

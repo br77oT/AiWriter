@@ -28,6 +28,7 @@ describe("ChecksPane — rendering", () => {
         checksConfig={cfg()}
         onChecksChange={noop}
         onChecksConfigChange={noop}
+        onLoadTemplate={noop}
       />
     );
 
@@ -51,6 +52,7 @@ describe("ChecksPane — rendering", () => {
         })}
         onChecksChange={noop}
         onChecksConfigChange={noop}
+        onLoadTemplate={noop}
       />
     );
 
@@ -69,23 +71,27 @@ describe("ChecksPane — rendering", () => {
         checksConfig={cfg()}
         onChecksChange={noop}
         onChecksConfigChange={noop}
+        onLoadTemplate={noop}
       />
     );
     expect(screen.getByText(/no checks yet/i)).toBeInTheDocument();
   });
 
-  it("renders a Load template button as a placeholder for slice 009", () => {
+  it("renders an enabled Load template button that calls onLoadTemplate", () => {
+    const onLoad = vi.fn();
     render(
       <ChecksPane
         checks={[]}
         checksConfig={cfg()}
         onChecksChange={noop}
         onChecksConfigChange={noop}
+        onLoadTemplate={onLoad}
       />
     );
     const button = screen.getByRole("button", { name: /load template/i });
-    expect(button).toBeInTheDocument();
-    expect(button).toBeDisabled();
+    expect(button).toBeEnabled();
+    fireEvent.click(button);
+    expect(onLoad).toHaveBeenCalled();
   });
 });
 
@@ -98,6 +104,7 @@ describe("ChecksPane — add / edit / remove", () => {
         checksConfig={cfg()}
         onChecksChange={onChange}
         onChecksConfigChange={noop}
+        onLoadTemplate={noop}
       />
     );
 
@@ -123,6 +130,7 @@ describe("ChecksPane — add / edit / remove", () => {
         checksConfig={cfg()}
         onChecksChange={onChange}
         onChecksConfigChange={noop}
+        onLoadTemplate={noop}
       />
     );
 
@@ -148,6 +156,7 @@ describe("ChecksPane — add / edit / remove", () => {
         checksConfig={cfg()}
         onChecksChange={onChange}
         onChecksConfigChange={noop}
+        onLoadTemplate={noop}
       />
     );
 
@@ -171,6 +180,7 @@ describe("ChecksPane — add / edit / remove", () => {
         checksConfig={cfg()}
         onChecksChange={onChange}
         onChecksConfigChange={noop}
+        onLoadTemplate={noop}
       />
     );
 
@@ -193,6 +203,7 @@ describe("ChecksPane — toggles", () => {
         checksConfig={cfg({ evaluateAfterEveryGeneration: true })}
         onChecksChange={noop}
         onChecksConfigChange={onConfigChange}
+        onLoadTemplate={noop}
       />
     );
 
@@ -213,6 +224,7 @@ describe("ChecksPane — toggles", () => {
         checksConfig={cfg({ blockExportIfMissing: false })}
         onChecksChange={noop}
         onChecksConfigChange={onConfigChange}
+        onLoadTemplate={noop}
       />
     );
 
@@ -239,6 +251,7 @@ describe("ChecksPane — controlled component, no internal-state bleed", () => {
         checksConfig={cfg()}
         onChecksChange={noop}
         onChecksConfigChange={noop}
+        onLoadTemplate={noop}
       />
     );
     expect(screen.getByDisplayValue("DocA Q1")).toBeInTheDocument();
@@ -250,6 +263,7 @@ describe("ChecksPane — controlled component, no internal-state bleed", () => {
         checksConfig={cfg()}
         onChecksChange={noop}
         onChecksConfigChange={noop}
+        onLoadTemplate={noop}
       />
     );
     expect(screen.queryByDisplayValue("DocA Q1")).not.toBeInTheDocument();
@@ -267,6 +281,7 @@ describe("ChecksPane — controlled component, no internal-state bleed", () => {
         })}
         onChecksChange={noop}
         onChecksConfigChange={noop}
+        onLoadTemplate={noop}
       />
     );
     expect(
@@ -285,6 +300,7 @@ describe("ChecksPane — controlled component, no internal-state bleed", () => {
         })}
         onChecksChange={noop}
         onChecksConfigChange={noop}
+        onLoadTemplate={noop}
       />
     );
     expect(

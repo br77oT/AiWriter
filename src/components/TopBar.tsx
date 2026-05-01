@@ -2,29 +2,40 @@
 
 import { useState } from "react";
 import { FIXTURES } from "@/lib/validation/fixtures";
+import type { Template } from "@/lib/templates";
 
 interface TopBarProps {
   documentTitle: string;
   validating: boolean;
   generating: boolean;
   canGenerate: boolean;
+  templates: Template[];
+  selectedTemplateId: string | null;
+  canSaveAsTemplate: boolean;
   onValidate: () => void;
   onGenerate: () => void;
   onLoadFixture: (fixtureId: string) => void;
+  onSelectTemplate: (templateId: string) => void;
+  onSaveAsTemplate: () => void;
 }
 
-// Top bar shell. Slice 002 enabled Validate; slice 006 enables Generate
-// Draft once the outline has at least one section to write into.
+// Top bar shell. Slice 009 enables the Template selector (was placeholder)
+// and adds "Save as template…". Both actions delegate to Workspace, which
+// owns the confirm-before-clobber + name-prompt flows.
 export function TopBar({
   documentTitle,
   validating,
   generating,
   canGenerate,
+  templates,
+  selectedTemplateId,
+  canSaveAsTemplate,
   onValidate,
   onGenerate,
   onLoadFixture,
+  onSelectTemplate,
+  onSaveAsTemplate,
 }: TopBarProps) {
-  const [template, setTemplate] = useState("");
   const [fixture, setFixture] = useState("");
 
   return (
@@ -55,15 +66,32 @@ export function TopBar({
         <select
           aria-label="Template"
           className="rounded border border-neutral-300 px-2 py-1 text-sm"
-          value={template}
-          onChange={(e) => setTemplate(e.target.value)}
+          value={selectedTemplateId ?? ""}
+          onChange={(e) => {
+            const id = e.target.value;
+            if (id) onSelectTemplate(id);
+          }}
         >
           <option value="">Template…</option>
-          <option value="incident-report">Incident Report</option>
-          <option value="postmortem">Postmortem</option>
-          <option value="status-report">Status Report</option>
-          <option value="custom">Custom</option>
+          {templates.map((t) => (
+            <option key={t.id} value={t.id}>
+              {t.name}
+            </option>
+          ))}
         </select>
+        <button
+          type="button"
+          onClick={onSaveAsTemplate}
+          disabled={!canSaveAsTemplate}
+          title={
+            canSaveAsTemplate
+              ? undefined
+              : "Add at least one outline section, check, or spec field to save as template."
+          }
+          className="rounded border border-neutral-300 bg-white px-3 py-1 text-sm hover:bg-neutral-100 disabled:bg-neutral-100 disabled:text-neutral-400"
+        >
+          Save as template…
+        </button>
         <button
           type="button"
           className="rounded border border-neutral-300 bg-white px-3 py-1 text-sm hover:bg-neutral-100"

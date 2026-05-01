@@ -17,8 +17,15 @@ import { ChecksPane } from "./panes/ChecksPane";
 import { DraftPane } from "./panes/DraftPane";
 import { ValidationRail, type AutofixMode } from "./panes/ValidationRail";
 import { SectionRewriteModal } from "./SectionRewriteModal";
+import { TemplatePickerModal } from "./TemplatePickerModal";
 import { getFixture } from "@/lib/validation/fixtures";
 import type { PreserveFlags, SectionMode } from "@/lib/generation";
+import {
+  applyTemplate,
+  bundleFromDocument,
+  isDocumentEmpty,
+  type Template,
+} from "@/lib/templates";
 
 interface WorkspaceProps {
   document: Document;
@@ -48,6 +55,8 @@ export function Workspace({ document: initial }: WorkspaceProps) {
   const [rewriteBusy, setRewriteBusy] = useState(false);
   const [autofixStatus, setAutofixStatus] = useState<AutofixStatus>("idle");
   const [lockedSkipped, setLockedSkipped] = useState<string[]>([]);
+  const [templates, setTemplates] = useState<Template[]>([]);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Track the latest validate request so a slow/old response can't
@@ -61,6 +70,25 @@ export function Workspace({ document: initial }: WorkspaceProps) {
       // Private mode / disabled storage — degrade silently.
     }
   }, [document.id]);
+
+  // Templates list (built-ins + user-saved). Refreshes after a successful
+  // Save-as-template so the new entry appears in the selector + sidebar.
+  const refreshTemplates = useCallback(async () => {
+    try {
+      const res = await fetch("/api/templates");
+      const { templates: list } = (await res.json()) as {
+        templates?: Template[];
+      };
+      setTemplates(list ?? []);
+    } catch {
+      // No templates → harmless degraded state; selector shows just the
+      // empty placeholder.
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshTemplates();
+  }, [refreshTemplates]);
 
   const runValidate = useCallback(async () => {
     const seq = ++requestSeqRef.current;
@@ -114,6 +142,7 @@ export function Workspace({ document: initial }: WorkspaceProps) {
             draftSections: next.draftSections,
             outlineFrozen: next.outlineFrozen,
             lockedSectionIds: next.lockedSectionIds,
+            templateId: next.templateId,
           },
         }),
       });
@@ -283,6 +312,51 @@ export function Workspace({ document: initial }: WorkspaceProps) {
     [document.id, runValidate]
   );
 
+  // Picks a template from the dropdown / sidebar / picker modal. Confirms
+  // before clobbering a non-empty document, per PRD §"Template Library":
+  // "Selecting on an existing document is gated behind a confirm prompt to
+  // avoid clobbering."
+  const handleSelectTemplate = useCallback(
+    (templateId: string) => {
+      const template = templates.find((t) => t.id === templateId);
+      if (!template) return;
+      if (!isDocumentEmpty(document)) {
+        const ok = window.confirm(
+          `Loading "${template.name}" will replace the current Spec, Outline, and Checks. Continue?`
+        );
+        if (!ok) return;
+      }
+      const next = applyTemplate(document, template);
+      void persistDocument(next);
+      setPickerOpen(false);
+      // Outline + checks changed → revalidate so the rail reflects the new
+      // structural + question coverage immediately.
+      scheduleRevalidate();
+    },
+    [document, persistDocument, scheduleRevalidate, templates]
+  );
+
+  const handleSaveAsTemplate = useCallback(async () => {
+    const name = window.prompt("Name this template:");
+    if (!name || !name.trim()) return;
+    try {
+      await fetch("/api/templates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: name.trim(),
+          bundle: bundleFromDocument(document),
+        }),
+      });
+      await refreshTemplates();
+    } catch {
+      // No-op: surface a generic failure via the next refresh; the existing
+      // doc state is unchanged.
+    }
+  }, [document, refreshTemplates]);
+
+  const handleOpenPicker = useCallback(() => setPickerOpen(true), []);
+
   const handleLoadFixture = useCallback(
     async (fixtureId: string) => {
       const fixture = getFixture(fixtureId);
@@ -306,12 +380,21 @@ export function Workspace({ document: initial }: WorkspaceProps) {
         validating={status === "running"}
         generating={genStatus === "running"}
         canGenerate={document.outline.length > 0}
+        templates={templates}
+        selectedTemplateId={document.templateId}
+        canSaveAsTemplate={!isDocumentEmpty(document)}
         onValidate={runValidate}
         onGenerate={handleGenerate}
         onLoadFixture={handleLoadFixture}
+        onSelectTemplate={handleSelectTemplate}
+        onSaveAsTemplate={handleSaveAsTemplate}
       />
       <div className="flex flex-1 overflow-hidden">
-        <Sidebar activeDocumentId={document.id} />
+        <Sidebar
+          activeDocumentId={document.id}
+          templates={templates}
+          onSelectTemplate={handleSelectTemplate}
+        />
         <main className="grid flex-1 grid-cols-[260px_260px_260px_1fr] overflow-hidden">
           <SpecPane spec={document.spec} onSpecChange={handleSpecChange} />
           <OutlinePane
@@ -325,6 +408,7 @@ export function Workspace({ document: initial }: WorkspaceProps) {
             checksConfig={document.checksConfig}
             onChecksChange={handleChecksChange}
             onChecksConfigChange={handleChecksConfigChange}
+            onLoadTemplate={handleOpenPicker}
           />
           <DraftPane
             document={document}
@@ -350,6 +434,14 @@ export function Workspace({ document: initial }: WorkspaceProps) {
           busy={rewriteBusy}
           onCancel={() => setRewriteTarget(null)}
           onSubmit={handleRewriteSubmit}
+        />
+      )}
+      {pickerOpen && (
+        <TemplatePickerModal
+          templates={templates}
+          busy={false}
+          onCancel={() => setPickerOpen(false)}
+          onPick={handleSelectTemplate}
         />
       )}
     </div>

@@ -7,6 +7,7 @@ interface ChecksPaneProps {
   checksConfig: ChecksConfig;
   onChecksChange: (next: Check[]) => void;
   onChecksConfigChange: (next: ChecksConfig) => void;
+  onLoadTemplate: () => void;
 }
 
 // Controlled component: never owns checks/config state. Workspace holds the
@@ -18,6 +19,7 @@ export function ChecksPane({
   checksConfig,
   onChecksChange,
   onChecksConfigChange,
+  onLoadTemplate,
 }: ChecksPaneProps) {
   function handleAdd() {
     onChecksChange([...checks, { id: makeId(), question: "" }]);
@@ -47,9 +49,8 @@ export function ChecksPane({
         </h2>
         <button
           type="button"
-          disabled
-          title="Available in slice 009"
-          className="rounded border border-neutral-300 bg-neutral-100 px-2 py-0.5 text-xs text-neutral-400"
+          onClick={onLoadTemplate}
+          className="rounded border border-neutral-300 bg-white px-2 py-0.5 text-xs text-neutral-700 hover:bg-neutral-100"
         >
           Load template
         </button>
