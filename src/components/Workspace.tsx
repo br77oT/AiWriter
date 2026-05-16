@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import type {
   Check,
   ChecksConfig,
@@ -21,6 +22,7 @@ import { TemplatePickerModal } from "./TemplatePickerModal";
 import { VersionHistoryPanel } from "./VersionHistoryPanel";
 import { ExportPopover } from "./ExportPopover";
 import { MobileWorkspaceLayout } from "./MobileWorkspaceLayout";
+import { WorkspaceGuide } from "./WorkspaceGuide";
 import { useIsMobile } from "@/lib/useIsMobile";
 import { useReviewerMode } from "@/lib/useReviewerMode";
 import { getFixture } from "@/lib/validation/fixtures";
@@ -74,6 +76,7 @@ export function Workspace({ document: initial }: WorkspaceProps) {
   );
   const [exportOpen, setExportOpen] = useState(false);
   const isMobile = useIsMobile();
+  const router = useRouter();
   const [reviewerMode, setReviewerMode] = useReviewerMode();
   // Default to all three side panes collapsed so a fresh workspace opens
   // focused on the Draft. A saved localStorage preference overrides this.
@@ -434,6 +437,23 @@ export function Workspace({ document: initial }: WorkspaceProps) {
 
   const handleOpenPicker = useCallback(() => setPickerOpen(true), []);
 
+  // "New document" guide step: route through the onboarding wizard, the same
+  // entry point the sidebar's New-document button uses.
+  const handleNewDocument = useCallback(() => {
+    router.push("/onboarding");
+  }, [router]);
+
+  // "Write the draft" guide step: bring the first draft section into view and
+  // focus it. The Draft pane is always rendered, so this is a scroll+focus
+  // rather than a navigation.
+  const handleWriteDraft = useCallback(() => {
+    const firstTextarea = window.document.querySelector<HTMLTextAreaElement>(
+      'textarea[aria-label^="Draft text for"]'
+    );
+    firstTextarea?.scrollIntoView({ behavior: "smooth", block: "center" });
+    firstTextarea?.focus();
+  }, []);
+
   const handleOpenHistory = useCallback(() => setHistoryOpen(true), []);
   const handleCloseHistory = useCallback(() => setHistoryOpen(false), []);
 
@@ -648,6 +668,22 @@ export function Workspace({ document: initial }: WorkspaceProps) {
           document={document}
           report={report}
           onClose={handleCloseExport}
+        />
+      )}
+      {/* Bottom-left mini-map of the workflow. Desktop + author mode only:
+          mobile already paginates the panes via tabs, and reviewers aren't
+          authoring a document through these stages. */}
+      {!isMobile && !reviewerMode && (
+        <WorkspaceGuide
+          document={document}
+          generating={genStatus === "running"}
+          validating={status === "running"}
+          canGenerate={document.outline.length > 0}
+          onNewDocument={handleNewDocument}
+          onSelectTemplate={handleOpenPicker}
+          onWriteDraft={handleWriteDraft}
+          onGenerate={handleGenerate}
+          onValidate={runValidate}
         />
       )}
     </div>
