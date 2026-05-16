@@ -53,11 +53,16 @@ beforeEach(() => {
     if (url.endsWith("/api/templates")) return { templates: [] };
     return {};
   });
+  // Spec/Outline/Checks now collapse by default; seed an "everything
+  // expanded" preference so pane-behavior tests see the editing UI. Tests
+  // that exercise the collapsed default clear this first.
+  window.localStorage.setItem("aiwriter:collapsedPanes", "[]");
 });
 
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  window.localStorage.clear();
 });
 
 describe("Workspace shell", () => {
@@ -79,6 +84,33 @@ describe("Workspace shell", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByRole("heading", { name: /validation/i })
+    ).toBeInTheDocument();
+  });
+
+  it("collapses Spec, Outline and Checks by default when no preference is saved", () => {
+    window.localStorage.removeItem("aiwriter:collapsedPanes");
+    const doc = newDocument("doc-1", "2026-04-29T00:00:00.000Z");
+    render(<Workspace document={doc} />);
+
+    // The three side panes show only their collapsed strips...
+    expect(screen.getByLabelText("Spec pane (collapsed)")).toBeInTheDocument();
+    expect(
+      screen.getByLabelText("Outline pane (collapsed)")
+    ).toBeInTheDocument();
+    expect(
+      screen.getByLabelText("Checks pane (collapsed)")
+    ).toBeInTheDocument();
+    // ...so their editing headings are not rendered.
+    expect(screen.queryByRole("heading", { name: /spec/i })).toBeNull();
+    // Draft stays open — it's the focus.
+    expect(
+      screen.getByRole("heading", { name: /^draft$/i })
+    ).toBeInTheDocument();
+
+    // Expanding one pane reveals its editing UI.
+    fireEvent.click(screen.getByLabelText("Expand Spec pane"));
+    expect(
+      screen.getByRole("heading", { name: /spec/i })
     ).toBeInTheDocument();
   });
 

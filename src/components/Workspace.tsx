@@ -75,8 +75,10 @@ export function Workspace({ document: initial }: WorkspaceProps) {
   const [exportOpen, setExportOpen] = useState(false);
   const isMobile = useIsMobile();
   const [reviewerMode, setReviewerMode] = useReviewerMode();
+  // Default to all three side panes collapsed so a fresh workspace opens
+  // focused on the Draft. A saved localStorage preference overrides this.
   const [collapsedPanes, setCollapsedPanes] = useState<Set<CollapsiblePaneId>>(
-    new Set()
+    () => new Set(COLLAPSIBLE_PANE_IDS)
   );
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -108,18 +110,20 @@ export function Workspace({ document: initial }: WorkspaceProps) {
 
   // Restore which panes the user collapsed last time. Hydrated in an effect
   // (not a lazy initializer) so the server render and first client render
-  // agree — localStorage is client-only.
+  // agree — localStorage is client-only. With no saved preference the
+  // all-collapsed default stands; any saved value (even an empty list, i.e.
+  // the user expanded everything) is applied verbatim.
   useEffect(() => {
     try {
       const raw = window.localStorage.getItem(COLLAPSED_PANES_KEY);
-      if (!raw) return;
+      if (raw === null) return;
       const ids = (JSON.parse(raw) as unknown[]).filter(
         (id): id is CollapsiblePaneId =>
           COLLAPSIBLE_PANE_IDS.includes(id as CollapsiblePaneId)
       );
-      if (ids.length > 0) setCollapsedPanes(new Set(ids));
+      setCollapsedPanes(new Set(ids));
     } catch {
-      // Corrupt / unavailable storage — start with everything expanded.
+      // Corrupt / unavailable storage — keep the all-collapsed default.
     }
   }, []);
 
