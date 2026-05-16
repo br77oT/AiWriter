@@ -8,6 +8,7 @@
     "start": "next start",
     "test": "vitest run",
     "test:watch": "vitest",
+    "seed:scenarios": "npx tsx scripts/seed-scenarios.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
