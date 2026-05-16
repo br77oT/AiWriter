@@ -36,6 +36,9 @@ import {
 
 interface WorkspaceProps {
   document: Document;
+  // False when ANTHROPIC_API_KEY is not set — generation + validation run
+  // against the echo stub. Defaults to true so tests opt in explicitly.
+  llmConfigured?: boolean;
 }
 
 const LAST_OPENED_KEY = "aiwriter:lastOpenedDocId";
@@ -57,7 +60,10 @@ interface RewriteTarget {
   mode: SectionMode;
 }
 
-export function Workspace({ document: initial }: WorkspaceProps) {
+export function Workspace({
+  document: initial,
+  llmConfigured = true,
+}: WorkspaceProps) {
   const [document, setDocument] = useState<Document>(initial);
   const [report, setReport] = useState<ValidationReport | null>(null);
   const [status, setStatus] = useState<ValidationStatus>("idle");
@@ -604,6 +610,18 @@ export function Workspace({ document: initial }: WorkspaceProps) {
         onOpenExport={handleOpenExport}
         onToggleReviewerMode={setReviewerMode}
       />
+      {!llmConfigured && (
+        <div
+          role="status"
+          data-testid="llm-stub-banner"
+          className="border-b border-amber-300 bg-amber-50 px-4 py-1.5 text-xs text-amber-800"
+        >
+          <span className="font-semibold">No API key configured.</span>{" "}
+          <code>ANTHROPIC_API_KEY</code> isn&apos;t set — draft generation and
+          document-check evaluation run against a stub and won&apos;t produce
+          real results.
+        </div>
+      )}
       {isMobile ? (
         <MobileWorkspaceLayout
           sidebar={sidebar}

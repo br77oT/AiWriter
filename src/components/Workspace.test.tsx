@@ -114,6 +114,20 @@ describe("Workspace shell", () => {
     ).toBeInTheDocument();
   });
 
+  it("shows the stub-mode banner when no API key is configured", () => {
+    const doc = newDocument("doc-1", "2026-04-29T00:00:00.000Z");
+    render(<Workspace document={doc} llmConfigured={false} />);
+    expect(screen.getByTestId("llm-stub-banner")).toHaveTextContent(
+      /ANTHROPIC_API_KEY/
+    );
+  });
+
+  it("hides the stub-mode banner when an API key is configured", () => {
+    const doc = newDocument("doc-1", "2026-04-29T00:00:00.000Z");
+    render(<Workspace document={doc} llmConfigured />);
+    expect(screen.queryByTestId("llm-stub-banner")).toBeNull();
+  });
+
   it("renders top-bar actions with text labels; Validate is enabled", () => {
     const doc = newDocument("doc-1", "2026-04-29T00:00:00.000Z");
     render(<Workspace document={doc} />);

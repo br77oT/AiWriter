@@ -127,6 +127,13 @@ interface AnthropicResponse {
 // the dev signal that you forgot to set the key, not a bug).
 let _defaultProvider: LlmProvider | null = null;
 
+// True when a real LLM key is available. Server-only — used by route/page
+// code to tell the UI whether generation + validation are real or stubbed,
+// and by the startup check in `instrumentation.ts`.
+export function isLlmConfigured(): boolean {
+  return Boolean(process.env.ANTHROPIC_API_KEY);
+}
+
 export function getDefaultProvider(): LlmProvider {
   if (_defaultProvider) return _defaultProvider;
   const apiKey = process.env.ANTHROPIC_API_KEY;
