@@ -24,7 +24,11 @@ export interface Check {
 }
 
 export type StructuralStatus = "present" | "thin" | "missing";
-export type QuestionStatus = "answered" | "partial" | "missing";
+// "error" — the check could not be evaluated at all (the LLM evaluator threw
+// or returned an unusable response). Distinct from "missing", which is a real
+// content gap. Keeps an infrastructure failure from masquerading as a draft
+// problem.
+export type QuestionStatus = "answered" | "partial" | "missing" | "error";
 
 export interface ValidationReport {
   structure: Array<{

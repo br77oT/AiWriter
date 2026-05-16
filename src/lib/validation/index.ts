@@ -91,6 +91,17 @@ interface RawCheckResponse {
   suggestion?: string | null;
 }
 
+// The three statuses a healthy evaluator may return. Anything else — a throw,
+// non-JSON output, or an unrecognised status string — becomes `error`.
+const CONTENT_STATUSES = new Set(["answered", "partial", "missing"]);
+
+// Shown for checks the evaluator could not assess. Deliberately does not blame
+// the draft: the check simply wasn't run.
+const EVALUATOR_ERROR_SUGGESTION =
+  "This check couldn't be evaluated — the evaluator did not return a usable " +
+  "response, so the draft was not assessed against it. Re-run Validate; if it " +
+  "persists, the check evaluator (an AI model) is unavailable.";
+
 async function evaluateQuestions(
   draft: Record<string, string>,
   outline: OutlineSection[],
@@ -102,19 +113,20 @@ async function evaluateQuestions(
   const results: ValidationReport["questions"] = [];
   for (const check of checks) {
     const request = buildCheckRequest(draftText, check.question);
-    let parsed: RawCheckResponse = {};
     try {
       const raw = await provider.complete(request);
-      parsed = JSON.parse(raw) as RawCheckResponse;
+      const parsed = JSON.parse(raw) as RawCheckResponse;
+      results.push(normalizeCheckResult(check.id, parsed));
     } catch {
-      // Provider returned non-JSON. Treat as unevaluable → missing with a
-      // generic suggestion so the report stays well-formed.
-      parsed = {
-        status: "missing",
-        suggestion: "Evaluator returned an invalid response.",
-      };
+      // The provider threw, or returned text that isn't JSON. The check was
+      // never actually assessed — report `error` rather than disguising an
+      // infrastructure failure as a "missing" content gap.
+      results.push({
+        checkId: check.id,
+        status: "error",
+        suggestion: EVALUATOR_ERROR_SUGGESTION,
+      });
     }
-    results.push(normalizeCheckResult(check.id, parsed));
   }
   return results;
 }
@@ -123,7 +135,12 @@ function normalizeCheckResult(
   checkId: string,
   raw: RawCheckResponse
 ): ValidationReport["questions"][number] {
-  const status = (raw.status ?? "missing").toLowerCase() as QuestionStatus;
+  const status = (raw.status ?? "").toLowerCase();
+  // The JSON parsed, but the model gave a status we don't recognise (or none
+  // at all). The result is unusable — surface it as `error`, not `missing`.
+  if (!CONTENT_STATUSES.has(status)) {
+    return { checkId, status: "error", suggestion: EVALUATOR_ERROR_SUGGESTION };
+  }
   const evidence =
     typeof raw.evidence === "string" && raw.evidence.trim() !== ""
       ? raw.evidence.trim()

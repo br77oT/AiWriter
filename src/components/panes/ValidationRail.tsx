@@ -27,6 +27,9 @@ const QUESTION_BADGE: Record<string, { label: string; tone: string }> = {
   answered: { label: "Answered", tone: "text-emerald-700" },
   partial: { label: "Partial", tone: "text-amber-700" },
   missing: { label: "Missing", tone: "text-red-700" },
+  // Not a content verdict — the check never ran. Neutral tone keeps it from
+  // reading as a red "your draft failed" result.
+  error: { label: "Not evaluated", tone: "text-neutral-500" },
 };
 
 export function ValidationRail({
@@ -52,6 +55,11 @@ export function ValidationRail({
     ? report.structure.filter(
         (s) => s.status === "missing" || s.status === "thin"
       ).length
+    : 0;
+  // Checks the evaluator could not run at all — surfaced separately from
+  // genuine "missing" results so the user isn't told their draft is at fault.
+  const erroredChecks = report
+    ? report.questions.filter((q) => q.status === "error").length
     : 0;
 
   return (
@@ -132,6 +140,22 @@ export function ValidationRail({
             <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-neutral-500">
               Document Checks
             </h3>
+            {erroredChecks > 0 && (
+              <p
+                className="mb-2 rounded border border-amber-300 bg-amber-50 p-2 text-xs text-amber-800"
+                data-testid="evaluator-error-notice"
+              >
+                {erroredChecks === report.questions.length
+                  ? "None of the checks could be evaluated"
+                  : `${erroredChecks} of ${report.questions.length} checks couldn't be evaluated`}
+                . The check evaluator (an AI model) didn&apos;t return a usable
+                response — most often because <code>ANTHROPIC_API_KEY</code> is
+                not configured for the app. These checks were{" "}
+                <span className="font-semibold">not assessed</span>; they
+                aren&apos;t necessarily missing from your draft. Re-run Validate
+                once the evaluator is available.
+              </p>
+            )}
             {report.questions.length === 0 ? (
               <p className="text-neutral-400">No checks defined.</p>
             ) : (

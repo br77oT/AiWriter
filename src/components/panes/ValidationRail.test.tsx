@@ -186,3 +186,73 @@ describe("ValidationRail — autofix footer (slice 008)", () => {
     expect(notice).toHaveTextContent(/locked/i);
   });
 });
+
+const reportWithEvaluatorError: ValidationReport = {
+  structure: [{ outlineId: "summary", status: "present" }],
+  questions: [
+    {
+      checkId: "c1",
+      status: "error",
+      suggestion: "This check couldn't be evaluated.",
+    },
+  ],
+  coverageScore: {
+    checksAnswered: 0,
+    checksTotal: 1,
+    sectionsPresent: 1,
+    sectionsTotal: 1,
+  },
+};
+
+describe("ValidationRail — evaluator errors", () => {
+  it("labels an errored check 'Not evaluated', not 'Missing'", () => {
+    render(
+      <ValidationRail
+        document={makeDoc()}
+        report={reportWithEvaluatorError}
+        status="idle"
+      />
+    );
+    expect(screen.getByText("Not evaluated")).toBeInTheDocument();
+    expect(screen.queryByText("Missing")).toBeNull();
+  });
+
+  it("shows an explanatory banner naming the likely cause", () => {
+    render(
+      <ValidationRail
+        document={makeDoc()}
+        report={reportWithEvaluatorError}
+        status="idle"
+      />
+    );
+    const notice = screen.getByTestId("evaluator-error-notice");
+    expect(notice).toHaveTextContent(/could be evaluated/i);
+    expect(notice).toHaveTextContent(/ANTHROPIC_API_KEY/);
+    expect(notice).toHaveTextContent(/not assessed/i);
+  });
+
+  it("shows no banner when every check evaluated cleanly", () => {
+    render(
+      <ValidationRail
+        document={makeDoc()}
+        report={reportAllGreen}
+        status="idle"
+      />
+    );
+    expect(screen.queryByTestId("evaluator-error-notice")).toBeNull();
+  });
+
+  it("does not enable Auto-fix from evaluator errors alone", () => {
+    render(
+      <ValidationRail
+        document={makeDoc()}
+        report={reportWithEvaluatorError}
+        status="idle"
+        onAutofix={() => {}}
+      />
+    );
+    expect(
+      screen.getByRole("button", { name: /Auto-fix missing items/ })
+    ).toBeDisabled();
+  });
+});

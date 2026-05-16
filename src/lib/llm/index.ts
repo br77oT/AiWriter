@@ -136,6 +136,16 @@ export function getDefaultProvider(): LlmProvider {
       model: process.env.ANTHROPIC_MODEL,
     });
   } else {
+    // No key → echo stub. Generation produces stubby text and check
+    // evaluation cannot run (the stub's output isn't valid JSON, so every
+    // check comes back as `error`). Warn loudly once so this shows up in the
+    // server log rather than only as confusing in-app results.
+    console.warn(
+      "[AiWriter] ANTHROPIC_API_KEY is not set — using the echo stub LLM " +
+        "provider. Draft generation will be stubby and document-check " +
+        'evaluation will report every check as "Not evaluated". Set ' +
+        "ANTHROPIC_API_KEY to enable real generation and validation."
+    );
     _defaultProvider = createStubProvider();
   }
   return _defaultProvider;

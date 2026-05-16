@@ -146,6 +146,58 @@ describe("Question Evaluator", () => {
   });
 });
 
+describe("Question Evaluator — evaluator failures", () => {
+  it("reports error (not missing) when the evaluator returns non-JSON", async () => {
+    const provider = createScriptedProvider(() => "Looks fine to me.");
+    const report = await validate(
+      { summary: "Some draft text." },
+      [outline[0]],
+      [checks[0]],
+      { provider }
+    );
+    expect(report.questions[0].status).toBe("error");
+    expect(report.questions[0].suggestion).toMatch(/couldn't be evaluated/i);
+  });
+
+  it("reports error when the evaluator throws", async () => {
+    const provider = createScriptedProvider(() => {
+      throw new Error("network down");
+    });
+    const report = await validate(
+      { summary: "Some draft text." },
+      [outline[0]],
+      [checks[0]],
+      { provider }
+    );
+    expect(report.questions[0].status).toBe("error");
+  });
+
+  it("reports error when the evaluator returns an unrecognised status", async () => {
+    const provider = createScriptedProvider(() =>
+      JSON.stringify({ status: "dunno", suggestion: "n/a" })
+    );
+    const report = await validate(
+      { summary: "Some draft text." },
+      [outline[0]],
+      [checks[0]],
+      { provider }
+    );
+    expect(report.questions[0].status).toBe("error");
+  });
+
+  it("does not count errored checks as answered in the coverage score", async () => {
+    const provider = createScriptedProvider(() => "not json");
+    const report = await validate(
+      { summary: "Some draft text." },
+      [outline[0]],
+      [checks[0]],
+      { provider }
+    );
+    expect(report.coverageScore.checksAnswered).toBe(0);
+    expect(report.coverageScore.checksTotal).toBe(1);
+  });
+});
+
 describe("Coverage score", () => {
   it("counts answered checks and present required sections", () => {
     const score = computeCoverageScore(
