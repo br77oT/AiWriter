@@ -6,25 +6,42 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
+// Stub process.exit so a "should exit" assertion doesn't tear down the test
+// runner. The stub throws instead, which the tests catch.
+function stubExit() {
+  return vi.spyOn(process, "exit").mockImplementation(((code?: number) => {
+    throw new Error(`process.exit(${code})`);
+  }) as never);
+}
+
 describe("instrumentation — register()", () => {
-  it("throws in production when ANTHROPIC_API_KEY is missing", () => {
+  it("exits the process in production when ANTHROPIC_API_KEY is missing", () => {
     vi.stubEnv("NODE_ENV", "production");
     vi.stubEnv("ANTHROPIC_API_KEY", "");
-    expect(() => register()).toThrow(
-      /ANTHROPIC_API_KEY is required in production/
+    const exit = stubExit();
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(() => register()).toThrow("process.exit(1)");
+    expect(err).toHaveBeenCalledWith(
+      expect.stringContaining("ANTHROPIC_API_KEY is required in production")
     );
+    exit.mockRestore();
+    err.mockRestore();
   });
 
-  it("does not throw in production when the key is set", () => {
+  it("does not exit in production when the key is set", () => {
     vi.stubEnv("NODE_ENV", "production");
     vi.stubEnv("ANTHROPIC_API_KEY", "sk-ant-test");
+    const exit = stubExit();
     expect(() => register()).not.toThrow();
+    exit.mockRestore();
   });
 
-  it("does not throw in development when the key is missing", () => {
+  it("does not exit in development when the key is missing", () => {
     vi.stubEnv("NODE_ENV", "development");
     vi.stubEnv("ANTHROPIC_API_KEY", "");
+    const exit = stubExit();
     expect(() => register()).not.toThrow();
+    exit.mockRestore();
   });
 });
 
