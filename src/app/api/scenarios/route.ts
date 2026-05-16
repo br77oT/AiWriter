@@ -5,6 +5,11 @@ import {
   snapshotFromDocument,
 } from "@/lib/scenario-store";
 
+// GET /api/scenarios — list every saved scenario (newest first).
+export async function GET(): Promise<NextResponse> {
+  return NextResponse.json({ scenarios: getDefaultScenarioStore().list() });
+}
+
 // POST /api/scenarios — freeze a document into a shareable scenario.
 // Body: { documentId }. Returns { code } for a `/scenario/<code>` link.
 export async function POST(request: Request): Promise<NextResponse> {

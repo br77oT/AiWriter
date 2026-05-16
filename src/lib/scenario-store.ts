@@ -59,9 +59,20 @@ export function applySnapshotToDocument(
   };
 }
 
+// Lightweight row for the scenarios gallery — enough to identify a scenario
+// without shipping the whole snapshot.
+export interface ScenarioSummary {
+  code: string;
+  title: string;
+  sectionCount: number;
+  checkCount: number;
+  createdAt: string;
+}
+
 export interface ScenarioStore {
   create(snapshot: ScenarioSnapshot, opts?: { now?: string }): { code: string };
   get(code: string): ScenarioSnapshot | null;
+  list(): ScenarioSummary[];
 }
 
 interface StoreOptions {
@@ -99,6 +110,9 @@ export function createScenarioStore(options: StoreOptions): ScenarioStore {
     "INSERT INTO scenarios (code, data, created_at) VALUES (?, ?, ?)"
   );
   const selectStmt = db.prepare("SELECT data FROM scenarios WHERE code = ?");
+  const listStmt = db.prepare(
+    "SELECT code, data, created_at FROM scenarios ORDER BY created_at DESC"
+  );
 
   return {
     create(snapshot, opts) {
@@ -125,6 +139,24 @@ export function createScenarioStore(options: StoreOptions): ScenarioStore {
       const row = selectStmt.get(code) as { data: string } | undefined;
       if (!row) return null;
       return JSON.parse(row.data) as ScenarioSnapshot;
+    },
+
+    list() {
+      const rows = listStmt.all() as Array<{
+        code: string;
+        data: string;
+        created_at: string;
+      }>;
+      return rows.map((row) => {
+        const snapshot = JSON.parse(row.data) as ScenarioSnapshot;
+        return {
+          code: row.code,
+          title: snapshot.title,
+          sectionCount: snapshot.outline.length,
+          checkCount: snapshot.checks.length,
+          createdAt: row.created_at,
+        };
+      });
     },
   };
 }

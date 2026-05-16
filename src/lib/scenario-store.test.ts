@@ -67,4 +67,30 @@ describe("ScenarioStore", () => {
     const b = store.create(snap).code;
     expect(a).not.toBe(b);
   });
+
+  it("list() returns summaries with counts, newest first", () => {
+    const store = createScenarioStore({ filename: ":memory:" });
+    const snap = snapshotFromDocument(sampleDoc());
+    const first = store.create(snap, {
+      now: "2026-05-01T00:00:00.000Z",
+    }).code;
+    const second = store.create(snap, {
+      now: "2026-05-02T00:00:00.000Z",
+    }).code;
+
+    const list = store.list();
+    expect(list.map((s) => s.code)).toEqual([second, first]);
+    expect(list[0]).toEqual({
+      code: second,
+      title: "Outage report",
+      sectionCount: 1,
+      checkCount: 1,
+      createdAt: "2026-05-02T00:00:00.000Z",
+    });
+  });
+
+  it("list() is empty for a fresh store", () => {
+    const store = createScenarioStore({ filename: ":memory:" });
+    expect(store.list()).toEqual([]);
+  });
 });
