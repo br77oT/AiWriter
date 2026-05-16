@@ -2,25 +2,43 @@
 
 import { useState } from "react";
 import type { Spec } from "@/lib/types";
+import { CollapseButton, CollapsedStrip } from "./CollapsiblePane";
 
 interface SpecPaneProps {
   spec: Spec;
   onSpecChange: (next: Spec) => void;
   readOnly?: boolean;
+  collapsed?: boolean;
+  onToggleCollapse?: () => void;
 }
 
-export function SpecPane({ spec, onSpecChange, readOnly = false }: SpecPaneProps) {
+export function SpecPane({
+  spec,
+  onSpecChange,
+  readOnly = false,
+  collapsed = false,
+  onToggleCollapse,
+}: SpecPaneProps) {
+  if (collapsed && onToggleCollapse) {
+    return <CollapsedStrip label="Spec" onExpand={onToggleCollapse} />;
+  }
+
   return (
     <section
       className="flex h-full flex-col gap-4 overflow-y-auto border-r border-neutral-200 bg-white p-3"
       aria-labelledby="spec-pane-heading"
     >
-      <h2
-        id="spec-pane-heading"
-        className="text-sm font-semibold uppercase tracking-wide text-neutral-600"
-      >
-        Spec
-      </h2>
+      <div className="flex items-center justify-between">
+        <h2
+          id="spec-pane-heading"
+          className="text-sm font-semibold uppercase tracking-wide text-neutral-600"
+        >
+          Spec
+        </h2>
+        {onToggleCollapse && (
+          <CollapseButton label="Spec" onCollapse={onToggleCollapse} />
+        )}
+      </div>
 
       <Field label="Goal" htmlFor="spec-goal">
         <textarea

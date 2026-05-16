@@ -187,3 +187,41 @@ describe("SpecPane", () => {
     expect(screen.getByText("B2")).toBeInTheDocument();
   });
 });
+
+describe("SpecPane — collapse", () => {
+  it("shows no collapse control when onToggleCollapse is omitted", () => {
+    render(<SpecPane spec={spec()} onSpecChange={vi.fn()} />);
+    expect(
+      screen.queryByLabelText(/Collapse Spec pane/)
+    ).not.toBeInTheDocument();
+  });
+
+  it("renders a collapse button in the header when onToggleCollapse is given", () => {
+    const onToggle = vi.fn();
+    render(
+      <SpecPane spec={spec()} onSpecChange={vi.fn()} onToggleCollapse={onToggle} />
+    );
+    fireEvent.click(screen.getByLabelText(/Collapse Spec pane/));
+    expect(onToggle).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders only the collapsed strip (no fields) when collapsed", () => {
+    const onToggle = vi.fn();
+    render(
+      <SpecPane
+        spec={spec({ goal: "Some goal" })}
+        onSpecChange={vi.fn()}
+        collapsed
+        onToggleCollapse={onToggle}
+      />
+    );
+    expect(screen.queryByLabelText("Goal")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText(/Expand Spec pane/));
+    expect(onToggle).toHaveBeenCalledTimes(1);
+  });
+
+  it("ignores collapsed when onToggleCollapse is omitted (mobile fallback)", () => {
+    render(<SpecPane spec={spec()} onSpecChange={vi.fn()} collapsed />);
+    expect(screen.getByLabelText("Goal")).toBeInTheDocument();
+  });
+});

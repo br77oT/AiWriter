@@ -167,3 +167,136 @@ describe("DraftPane — Rewrite / Expand buttons", () => {
     ).toBeEnabled();
   });
 });
+
+describe("DraftPane — Insert example text", () => {
+  it("shows Insert example only for empty sections", () => {
+    const doc = makeDoc({ draftSections: { summary: "Already written." } });
+    render(
+      <DraftPane
+        document={doc}
+        onDraftSectionChange={() => {}}
+        onLockToggle={() => {}}
+        onRewrite={() => {}}
+        onExpand={() => {}}
+      />
+    );
+    // impact has no draft text → button present; summary is filled → absent.
+    expect(
+      screen.getByRole("button", {
+        name: /Insert example text for section "Impact"/,
+      })
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", {
+        name: /Insert example text for section "Summary"/,
+      })
+    ).not.toBeInTheDocument();
+  });
+
+  it("treats whitespace-only sections as empty", () => {
+    const doc = makeDoc({ draftSections: { summary: "   ", impact: "" } });
+    render(
+      <DraftPane
+        document={doc}
+        onDraftSectionChange={() => {}}
+        onLockToggle={() => {}}
+        onRewrite={() => {}}
+        onExpand={() => {}}
+      />
+    );
+    expect(
+      screen.getByRole("button", {
+        name: /Insert example text for section "Summary"/,
+      })
+    ).toBeInTheDocument();
+  });
+
+  it("clicking Insert example fills the section with non-empty starter text", () => {
+    const doc = makeDoc({ draftSections: {} });
+    const calls: Array<{ id: string; text: string }> = [];
+    render(
+      <DraftPane
+        document={doc}
+        onDraftSectionChange={(id, text) => calls.push({ id, text })}
+        onLockToggle={() => {}}
+        onRewrite={() => {}}
+        onExpand={() => {}}
+      />
+    );
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /Insert example text for section "Summary"/,
+      })
+    );
+    expect(calls).toHaveLength(1);
+    expect(calls[0].id).toBe("summary");
+    // The starter is a real worked example — actual prose, not instructions.
+    expect(calls[0].text.length).toBeGreaterThan(80);
+    expect(calls[0].text).toMatch(/checkout service was unavailable/);
+  });
+
+  it("inserts a different worked example per section heading", () => {
+    const doc = makeDoc({ draftSections: {} });
+    const calls: Array<{ id: string; text: string }> = [];
+    render(
+      <DraftPane
+        document={doc}
+        onDraftSectionChange={(id, text) => calls.push({ id, text })}
+        onLockToggle={() => {}}
+        onRewrite={() => {}}
+        onExpand={() => {}}
+      />
+    );
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /Insert example text for section "Summary"/,
+      })
+    );
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /Insert example text for section "Impact"/,
+      })
+    );
+    const summaryText = calls.find((c) => c.id === "summary")!.text;
+    const impactText = calls.find((c) => c.id === "impact")!.text;
+    expect(summaryText).not.toEqual(impactText);
+    expect(impactText).toMatch(/1,800 customers/);
+  });
+
+  it("hides Insert example in readOnly mode", () => {
+    const doc = makeDoc({ draftSections: {} });
+    render(
+      <DraftPane
+        document={doc}
+        onDraftSectionChange={() => {}}
+        onLockToggle={() => {}}
+        onRewrite={() => {}}
+        onExpand={() => {}}
+        readOnly
+      />
+    );
+    expect(
+      screen.queryByRole("button", {
+        name: /Insert example text/,
+      })
+    ).not.toBeInTheDocument();
+  });
+
+  it("disables Insert example for locked sections", () => {
+    const doc = makeDoc({ draftSections: {}, lockedSectionIds: ["impact"] });
+    render(
+      <DraftPane
+        document={doc}
+        onDraftSectionChange={() => {}}
+        onLockToggle={() => {}}
+        onRewrite={() => {}}
+        onExpand={() => {}}
+      />
+    );
+    expect(
+      screen.getByRole("button", {
+        name: /Insert example text for section "Impact"/,
+      })
+    ).toBeDisabled();
+  });
+});

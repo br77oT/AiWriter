@@ -8,6 +8,7 @@ import {
   updateSection,
   moveSection,
 } from "@/lib/outline";
+import { CollapseButton, CollapsedStrip } from "./CollapsiblePane";
 
 interface OutlinePaneProps {
   outline: OutlineSection[];
@@ -15,6 +16,8 @@ interface OutlinePaneProps {
   onOutlineChange: (next: OutlineSection[]) => void;
   onFrozenChange: (next: boolean) => void;
   readOnly?: boolean;
+  collapsed?: boolean;
+  onToggleCollapse?: () => void;
 }
 
 // Controlled component: never owns outline state. Workspace holds the
@@ -28,6 +31,8 @@ export function OutlinePane({
   onOutlineChange,
   onFrozenChange,
   readOnly = false,
+  collapsed = false,
+  onToggleCollapse,
 }: OutlinePaneProps) {
   // Reviewer mode is at least as restrictive as outline-frozen: no edits, no
   // reorder, no add/remove, freeze toggle itself is disabled.
@@ -80,18 +85,27 @@ export function OutlinePane({
     handleMove(from, to);
   }
 
+  if (collapsed && onToggleCollapse) {
+    return <CollapsedStrip label="Outline" onExpand={onToggleCollapse} />;
+  }
+
   return (
     <section
       className="flex h-full flex-col gap-3 overflow-y-auto border-r border-neutral-200 bg-white p-3"
       aria-labelledby="outline-pane-heading"
     >
       <div className="flex items-baseline justify-between">
-        <h2
-          id="outline-pane-heading"
-          className="text-sm font-semibold uppercase tracking-wide text-neutral-600"
-        >
-          Outline
-        </h2>
+        <div className="flex items-center gap-2">
+          <h2
+            id="outline-pane-heading"
+            className="text-sm font-semibold uppercase tracking-wide text-neutral-600"
+          >
+            Outline
+          </h2>
+          {onToggleCollapse && (
+            <CollapseButton label="Outline" onCollapse={onToggleCollapse} />
+          )}
+        </div>
         <label className="flex items-center gap-1 text-xs text-neutral-600">
           <input
             type="checkbox"

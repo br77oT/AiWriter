@@ -37,7 +37,13 @@ interface WorkspaceProps {
 }
 
 const LAST_OPENED_KEY = "aiwriter:lastOpenedDocId";
+const COLLAPSED_PANES_KEY = "aiwriter:collapsedPanes";
 const REVALIDATE_DEBOUNCE_MS = 600;
+
+// The three left-hand panes the user can collapse to declutter the workspace.
+// Draft and the validation rail are never collapsible — they're the focus.
+type CollapsiblePaneId = "spec" | "outline" | "checks";
+const COLLAPSIBLE_PANE_IDS: CollapsiblePaneId[] = ["spec", "outline", "checks"];
 
 type ValidationStatus = "idle" | "running" | "error";
 type GenerationStatus = "idle" | "running" | "error";
@@ -69,6 +75,9 @@ export function Workspace({ document: initial }: WorkspaceProps) {
   const [exportOpen, setExportOpen] = useState(false);
   const isMobile = useIsMobile();
   const [reviewerMode, setReviewerMode] = useReviewerMode();
+  const [collapsedPanes, setCollapsedPanes] = useState<Set<CollapsiblePaneId>>(
+    new Set()
+  );
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Reviewer-mode initial-paint: seed the rail with the latest validation
@@ -96,6 +105,40 @@ export function Workspace({ document: initial }: WorkspaceProps) {
       // Private mode / disabled storage — degrade silently.
     }
   }, [document.id]);
+
+  // Restore which panes the user collapsed last time. Hydrated in an effect
+  // (not a lazy initializer) so the server render and first client render
+  // agree — localStorage is client-only.
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(COLLAPSED_PANES_KEY);
+      if (!raw) return;
+      const ids = (JSON.parse(raw) as unknown[]).filter(
+        (id): id is CollapsiblePaneId =>
+          COLLAPSIBLE_PANE_IDS.includes(id as CollapsiblePaneId)
+      );
+      if (ids.length > 0) setCollapsedPanes(new Set(ids));
+    } catch {
+      // Corrupt / unavailable storage — start with everything expanded.
+    }
+  }, []);
+
+  const togglePaneCollapsed = useCallback((id: CollapsiblePaneId) => {
+    setCollapsedPanes((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      try {
+        window.localStorage.setItem(
+          COLLAPSED_PANES_KEY,
+          JSON.stringify([...next])
+        );
+      } catch {
+        // Persisting is best-effort; the in-memory toggle still works.
+      }
+      return next;
+    });
+  }, []);
 
   // Templates list (built-ins + user-saved). Refreshes after a successful
   // Save-as-template so the new entry appears in the selector + sidebar.
@@ -452,11 +495,17 @@ export function Workspace({ document: initial }: WorkspaceProps) {
       readOnly={reviewerMode}
     />
   );
+  // Collapse is a desktop-only affordance — the mobile layout already shows
+  // one pane at a time via tabs, so it withholds the collapse props entirely.
   const specPane = (
     <SpecPane
       spec={document.spec}
       onSpecChange={handleSpecChange}
       readOnly={reviewerMode}
+      collapsed={!isMobile && collapsedPanes.has("spec")}
+      onToggleCollapse={
+        isMobile ? undefined : () => togglePaneCollapsed("spec")
+      }
     />
   );
   const outlinePane = (
@@ -466,6 +515,10 @@ export function Workspace({ document: initial }: WorkspaceProps) {
       onOutlineChange={handleOutlineChange}
       onFrozenChange={handleFrozenChange}
       readOnly={reviewerMode}
+      collapsed={!isMobile && collapsedPanes.has("outline")}
+      onToggleCollapse={
+        isMobile ? undefined : () => togglePaneCollapsed("outline")
+      }
     />
   );
   const checksPane = (
@@ -476,6 +529,10 @@ export function Workspace({ document: initial }: WorkspaceProps) {
       onChecksConfigChange={handleChecksConfigChange}
       onLoadTemplate={handleOpenPicker}
       readOnly={reviewerMode}
+      collapsed={!isMobile && collapsedPanes.has("checks")}
+      onToggleCollapse={
+        isMobile ? undefined : () => togglePaneCollapsed("checks")
+      }
     />
   );
   const draftPane = (
@@ -535,7 +592,19 @@ export function Workspace({ document: initial }: WorkspaceProps) {
       ) : (
         <div className="flex flex-1 overflow-hidden">
           {sidebar}
-          <main className="grid flex-1 grid-cols-[260px_260px_260px_1fr] overflow-hidden">
+          <main
+            className="grid flex-1 overflow-hidden"
+            style={{
+              // Collapsed panes shrink to a thin strip; the freed width flows
+              // to the Draft column (1fr), which is the actual writing surface.
+              gridTemplateColumns: [
+                collapsedPanes.has("spec") ? "2.5rem" : "260px",
+                collapsedPanes.has("outline") ? "2.5rem" : "260px",
+                collapsedPanes.has("checks") ? "2.5rem" : "260px",
+                "1fr",
+              ].join(" "),
+            }}
+          >
             {specPane}
             {outlinePane}
             {checksPane}

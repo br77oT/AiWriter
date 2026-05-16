@@ -327,3 +327,51 @@ describe("OutlinePane — controlled component, no internal-state bleed", () => 
     expect(screen.getByDisplayValue("DocB-only")).toBeInTheDocument();
   });
 });
+
+describe("OutlinePane — collapse", () => {
+  it("shows no collapse control when onToggleCollapse is omitted", () => {
+    render(
+      <OutlinePane
+        outline={[s("a")]}
+        outlineFrozen={false}
+        onOutlineChange={vi.fn()}
+        onFrozenChange={vi.fn()}
+      />
+    );
+    expect(
+      screen.queryByLabelText(/Collapse Outline pane/)
+    ).not.toBeInTheDocument();
+  });
+
+  it("collapse button calls onToggleCollapse", () => {
+    const onToggle = vi.fn();
+    render(
+      <OutlinePane
+        outline={[s("a")]}
+        outlineFrozen={false}
+        onOutlineChange={vi.fn()}
+        onFrozenChange={vi.fn()}
+        onToggleCollapse={onToggle}
+      />
+    );
+    fireEvent.click(screen.getByLabelText(/Collapse Outline pane/));
+    expect(onToggle).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders only the collapsed strip when collapsed", () => {
+    const onToggle = vi.fn();
+    render(
+      <OutlinePane
+        outline={[s("a", { heading: "Intro" })]}
+        outlineFrozen={false}
+        onOutlineChange={vi.fn()}
+        onFrozenChange={vi.fn()}
+        collapsed
+        onToggleCollapse={onToggle}
+      />
+    );
+    expect(screen.queryByDisplayValue("Intro")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText(/Expand Outline pane/));
+    expect(onToggle).toHaveBeenCalledTimes(1);
+  });
+});

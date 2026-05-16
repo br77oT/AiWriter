@@ -1,6 +1,7 @@
 "use client";
 
 import type { Check, ChecksConfig } from "@/lib/types";
+import { CollapseButton, CollapsedStrip } from "./CollapsiblePane";
 
 interface ChecksPaneProps {
   checks: Check[];
@@ -9,6 +10,8 @@ interface ChecksPaneProps {
   onChecksConfigChange: (next: ChecksConfig) => void;
   onLoadTemplate: () => void;
   readOnly?: boolean;
+  collapsed?: boolean;
+  onToggleCollapse?: () => void;
 }
 
 // Controlled component: never owns checks/config state. Workspace holds the
@@ -22,6 +25,8 @@ export function ChecksPane({
   onChecksConfigChange,
   onLoadTemplate,
   readOnly = false,
+  collapsed = false,
+  onToggleCollapse,
 }: ChecksPaneProps) {
   function handleAdd() {
     onChecksChange([...checks, { id: makeId(), question: "" }]);
@@ -37,18 +42,27 @@ export function ChecksPane({
     );
   }
 
+  if (collapsed && onToggleCollapse) {
+    return <CollapsedStrip label="Checks" onExpand={onToggleCollapse} />;
+  }
+
   return (
     <section
       className="flex h-full flex-col gap-3 overflow-y-auto border-r border-neutral-200 bg-white p-3"
       aria-labelledby="checks-pane-heading"
     >
       <div className="flex items-baseline justify-between">
-        <h2
-          id="checks-pane-heading"
-          className="text-sm font-semibold uppercase tracking-wide text-neutral-600"
-        >
-          Checks
-        </h2>
+        <div className="flex items-center gap-2">
+          <h2
+            id="checks-pane-heading"
+            className="text-sm font-semibold uppercase tracking-wide text-neutral-600"
+          >
+            Checks
+          </h2>
+          {onToggleCollapse && (
+            <CollapseButton label="Checks" onCollapse={onToggleCollapse} />
+          )}
+        </div>
         <button
           type="button"
           onClick={onLoadTemplate}

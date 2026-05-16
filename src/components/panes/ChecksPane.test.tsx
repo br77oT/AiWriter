@@ -311,3 +311,56 @@ describe("ChecksPane — controlled component, no internal-state bleed", () => {
     ).toBeChecked();
   });
 });
+
+describe("ChecksPane — collapse", () => {
+  it("shows no collapse control when onToggleCollapse is omitted", () => {
+    render(
+      <ChecksPane
+        checks={[]}
+        checksConfig={cfg()}
+        onChecksChange={noop}
+        onChecksConfigChange={noop}
+        onLoadTemplate={noop}
+      />
+    );
+    expect(
+      screen.queryByLabelText(/Collapse Checks pane/)
+    ).not.toBeInTheDocument();
+  });
+
+  it("collapse button calls onToggleCollapse", () => {
+    const onToggle = vi.fn();
+    render(
+      <ChecksPane
+        checks={[]}
+        checksConfig={cfg()}
+        onChecksChange={noop}
+        onChecksConfigChange={noop}
+        onLoadTemplate={noop}
+        onToggleCollapse={onToggle}
+      />
+    );
+    fireEvent.click(screen.getByLabelText(/Collapse Checks pane/));
+    expect(onToggle).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders only the collapsed strip when collapsed", () => {
+    const onToggle = vi.fn();
+    render(
+      <ChecksPane
+        checks={[{ id: "c1", question: "What happened?" }]}
+        checksConfig={cfg()}
+        onChecksChange={noop}
+        onChecksConfigChange={noop}
+        onLoadTemplate={noop}
+        collapsed
+        onToggleCollapse={onToggle}
+      />
+    );
+    expect(
+      screen.queryByDisplayValue("What happened?")
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText(/Expand Checks pane/));
+    expect(onToggle).toHaveBeenCalledTimes(1);
+  });
+});

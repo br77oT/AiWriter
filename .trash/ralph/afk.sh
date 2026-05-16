@@ -19,8 +19,8 @@ for ((i=1; i<=$1; i++)); do
   commits=$(git log -n 5 --format="%H%n%ad%n%B---" --date=short 2>/dev/null || echo "No commits found")
   issues=$(cat issues/*.md 2>/dev/null || echo "No issues found")
   prompt=$(cat ralph/prompt.md)
-
-  docker sandbox run claude . -- \
+#docker sbx run claude . -- \
+  sbx run claude . -- \
     --verbose \
     --print \
     --output-format stream-json \
