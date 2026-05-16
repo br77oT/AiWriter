@@ -22,6 +22,7 @@ interface TopBarProps {
   onSaveAsTemplate: () => void;
   onOpenHistory: () => void;
   onOpenExport: () => void;
+  onShareScenario: () => void;
   onToggleReviewerMode: (next: boolean) => void;
 }
 
@@ -48,6 +49,7 @@ export function TopBar({
   onSaveAsTemplate,
   onOpenHistory,
   onOpenExport,
+  onShareScenario,
   onToggleReviewerMode,
 }: TopBarProps) {
   const [fixture, setFixture] = useState("");
@@ -173,6 +175,16 @@ export function TopBar({
             className="rounded border border-neutral-300 bg-white px-3 py-1 text-sm hover:bg-neutral-100 disabled:bg-neutral-100 disabled:text-neutral-400"
           >
             {validating ? "Validating…" : "Validate"}
+          </button>
+        )}
+        {!reviewerMode && (
+          <button
+            type="button"
+            onClick={onShareScenario}
+            title="Create a link that recreates this document and auto-runs Generate + Validate."
+            className="rounded border border-neutral-300 bg-white px-3 py-1 text-sm hover:bg-neutral-100"
+          >
+            Share link
           </button>
         )}
         {!reviewerMode && (

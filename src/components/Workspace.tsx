@@ -21,6 +21,7 @@ import { SectionRewriteModal } from "./SectionRewriteModal";
 import { TemplatePickerModal } from "./TemplatePickerModal";
 import { VersionHistoryPanel } from "./VersionHistoryPanel";
 import { ExportPopover } from "./ExportPopover";
+import { ScenarioShareModal } from "./ScenarioShareModal";
 import { MobileWorkspaceLayout } from "./MobileWorkspaceLayout";
 import { WorkspaceGuide } from "./WorkspaceGuide";
 import { useIsMobile } from "@/lib/useIsMobile";
@@ -81,6 +82,9 @@ export function Workspace({
     null
   );
   const [exportOpen, setExportOpen] = useState(false);
+  const [scenarioShareOpen, setScenarioShareOpen] = useState(false);
+  const [scenarioBusy, setScenarioBusy] = useState(false);
+  const [scenarioLink, setScenarioLink] = useState<string | null>(null);
   const isMobile = useIsMobile();
   const router = useRouter();
   const [reviewerMode, setReviewerMode] = useReviewerMode();
@@ -90,6 +94,8 @@ export function Workspace({
     () => new Set(COLLAPSIBLE_PANE_IDS)
   );
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Guards the scenario autorun pipeline so it fires at most once per mount.
+  const autorunRef = useRef(false);
 
   // Reviewer-mode initial-paint: seed the rail with the latest validation
   // report captured on the document. PRD user story 39 calls for the rail
@@ -475,6 +481,34 @@ export function Workspace({
   }, [report, runValidate]);
   const handleCloseExport = useCallback(() => setExportOpen(false), []);
 
+  // Freezes the current document into a shareable scenario and shows the
+  // resulting `/scenario/<code>` link in a modal.
+  const handleShareScenario = useCallback(async () => {
+    setScenarioShareOpen(true);
+    setScenarioBusy(true);
+    setScenarioLink(null);
+    try {
+      const res = await fetch("/api/scenarios", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ documentId: document.id }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const { code } = (await res.json()) as { code: string };
+      setScenarioLink(`${window.location.origin}/scenario/${code}`);
+    } catch {
+      // Leave the link null — the modal renders a retry message.
+      setScenarioLink(null);
+    } finally {
+      setScenarioBusy(false);
+    }
+  }, [document.id]);
+
+  const handleCloseScenarioShare = useCallback(
+    () => setScenarioShareOpen(false),
+    []
+  );
+
   const handleRestoreVersion = useCallback(
     async (versionId: string) => {
       setRestoringVersionId(versionId);
@@ -515,6 +549,26 @@ export function Workspace({
     },
     [document, persistDocument, runValidate]
   );
+
+  // Scenario autorun: a `/scenario/<code>` link redirects here with
+  // `?autorun=generate,validate`. Run those steps once, then drop the param
+  // (history-only — no remount) so a refresh doesn't re-trigger the pipeline.
+  useEffect(() => {
+    if (autorunRef.current) return;
+    autorunRef.current = true;
+    if (typeof window === "undefined" || reviewerMode) return;
+    const steps = new URLSearchParams(window.location.search).get("autorun");
+    if (!steps) return;
+    void (async () => {
+      if (steps.includes("generate") && document.outline.length > 0) {
+        await handleGenerate();
+      }
+      if (steps.includes("validate")) {
+        await runValidate();
+      }
+    })();
+    window.history.replaceState({}, "", `/documents/${document.id}`);
+  }, [reviewerMode, document.id, document.outline.length, handleGenerate, runValidate]);
 
   const sidebar = (
     <Sidebar
@@ -608,6 +662,7 @@ export function Workspace({
         onSaveAsTemplate={handleSaveAsTemplate}
         onOpenHistory={handleOpenHistory}
         onOpenExport={handleOpenExport}
+        onShareScenario={handleShareScenario}
         onToggleReviewerMode={setReviewerMode}
       />
       {!llmConfigured && (
@@ -686,6 +741,13 @@ export function Workspace({
           document={document}
           report={report}
           onClose={handleCloseExport}
+        />
+      )}
+      {scenarioShareOpen && (
+        <ScenarioShareModal
+          url={scenarioLink}
+          busy={scenarioBusy}
+          onClose={handleCloseScenarioShare}
         />
       )}
       {/* Bottom-left mini-map of the workflow. Desktop + author mode only:

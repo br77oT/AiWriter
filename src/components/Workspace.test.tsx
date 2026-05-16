@@ -1978,3 +1978,122 @@ describe("Workspace reviewer mode (slice 014)", () => {
     ).toBeNull();
   });
 });
+
+describe("Workspace scenario autorun + share", () => {
+  afterEach(() => {
+    window.history.replaceState({}, "", "/");
+  });
+
+  it("runs Generate then Validate when opened with ?autorun=generate,validate", async () => {
+    const calls: Array<{ method: string; url: string }> = [];
+    installFetch((input, init) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+      calls.push({ method, url });
+      if (url.endsWith("/api/documents")) return { documents: [] };
+      if (url.endsWith("/api/templates")) return { templates: [] };
+      if (url.endsWith("/api/generate")) {
+        return {
+          document: {
+            ...newDocument("doc-auto", "2026-05-01T00:00:00.000Z"),
+            outline: [
+              { id: "summary", heading: "Summary", description: "", required: true },
+            ],
+            draftSections: { summary: "Generated prose." },
+          },
+        };
+      }
+      if (url.endsWith("/api/validate")) {
+        return {
+          report: {
+            structure: [],
+            questions: [],
+            coverageScore: {
+              checksAnswered: 0,
+              checksTotal: 0,
+              sectionsPresent: 0,
+              sectionsTotal: 0,
+            },
+          },
+        };
+      }
+      return {};
+    });
+
+    window.history.replaceState(
+      {},
+      "",
+      "/documents/doc-auto?autorun=generate,validate"
+    );
+    const doc = {
+      ...newDocument("doc-auto", "2026-05-01T00:00:00.000Z"),
+      outline: [
+        { id: "summary", heading: "Summary", description: "", required: true },
+      ],
+    };
+    render(<Workspace document={doc} />);
+
+    await waitFor(() =>
+      expect(
+        calls.some(
+          (c) => c.method === "POST" && c.url.endsWith("/api/generate")
+        )
+      ).toBe(true)
+    );
+    await waitFor(() =>
+      expect(
+        calls.some(
+          (c) => c.method === "POST" && c.url.endsWith("/api/validate")
+        )
+      ).toBe(true)
+    );
+  });
+
+  it("does not autorun the pipeline without the ?autorun param", async () => {
+    const calls: string[] = [];
+    installFetch((input, init) => {
+      const url = String(input);
+      calls.push(`${init?.method ?? "GET"} ${url}`);
+      if (url.endsWith("/api/documents")) return { documents: [] };
+      if (url.endsWith("/api/templates")) return { templates: [] };
+      return {};
+    });
+
+    window.history.replaceState({}, "", "/documents/doc-x");
+    const doc = {
+      ...newDocument("doc-x", "2026-05-01T00:00:00.000Z"),
+      outline: [
+        { id: "s", heading: "S", description: "", required: true },
+      ],
+    };
+    render(<Workspace document={doc} />);
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(calls.some((c) => c.includes("POST /api/generate"))).toBe(false);
+    expect(calls.some((c) => c.includes("POST /api/validate"))).toBe(false);
+  });
+
+  it("Share link creates a scenario and shows the link", async () => {
+    installFetch((input) => {
+      const url = String(input);
+      if (url.endsWith("/api/documents")) return { documents: [] };
+      if (url.endsWith("/api/templates")) return { templates: [] };
+      if (url.endsWith("/api/scenarios")) return { code: "abcd2345" };
+      return {};
+    });
+
+    const doc = newDocument("doc-1", "2026-05-01T00:00:00.000Z");
+    render(<Workspace document={doc} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /share link/i }));
+    const dialog = await screen.findByRole("dialog", {
+      name: /shareable scenario link/i,
+    });
+    await waitFor(() => {
+      const input = within(dialog).getByLabelText(
+        /scenario link/i
+      ) as HTMLInputElement;
+      expect(input.value).toContain("/scenario/abcd2345");
+    });
+  });
+});
