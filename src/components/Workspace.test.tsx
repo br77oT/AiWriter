@@ -128,6 +128,14 @@ describe("Workspace shell", () => {
     expect(screen.queryByTestId("llm-stub-banner")).toBeNull();
   });
 
+  it("links to the examples gallery from the top bar", () => {
+    const doc = newDocument("doc-1", "2026-04-29T00:00:00.000Z");
+    render(<Workspace document={doc} />);
+    expect(
+      screen.getByRole("link", { name: /^examples$/i })
+    ).toHaveAttribute("href", "/scenarios");
+  });
+
   it("renders top-bar actions with text labels; Validate is enabled", () => {
     const doc = newDocument("doc-1", "2026-04-29T00:00:00.000Z");
     render(<Workspace document={doc} />);

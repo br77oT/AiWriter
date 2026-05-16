@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { FIXTURES } from "@/lib/validation/fixtures";
 import type { Template } from "@/lib/templates";
 
@@ -69,6 +70,12 @@ export function TopBar({
           Reviewer mode
         </span>
       )}
+      <Link
+        href="/scenarios"
+        className="text-sm text-neutral-600 hover:text-neutral-900 hover:underline"
+      >
+        Examples
+      </Link>
       <div className="ml-auto flex items-center gap-2">
         <label className="flex items-center gap-1 text-sm text-neutral-700">
           <input
