@@ -21,6 +21,7 @@ import { SectionRewriteModal } from "./SectionRewriteModal";
 import { TemplatePickerModal } from "./TemplatePickerModal";
 import { VersionHistoryPanel } from "./VersionHistoryPanel";
 import { ExportPopover } from "./ExportPopover";
+import { LlmKeyWarning } from "./LlmKeyWarning";
 import { ScenarioShareModal } from "./ScenarioShareModal";
 import { MobileWorkspaceLayout } from "./MobileWorkspaceLayout";
 import { WorkspaceGuide } from "./WorkspaceGuide";
@@ -665,18 +666,7 @@ export function Workspace({
         onShareScenario={handleShareScenario}
         onToggleReviewerMode={setReviewerMode}
       />
-      {!llmConfigured && (
-        <div
-          role="status"
-          data-testid="llm-stub-banner"
-          className="border-b border-amber-300 bg-amber-50 px-4 py-1.5 text-xs text-amber-800"
-        >
-          <span className="font-semibold">No API key configured.</span>{" "}
-          <code>ANTHROPIC_API_KEY</code> isn&apos;t set — draft generation and
-          document-check evaluation run against a stub and won&apos;t produce
-          real results.
-        </div>
-      )}
+      {!llmConfigured && <LlmKeyWarning />}
       {isMobile ? (
         <MobileWorkspaceLayout
           sidebar={sidebar}

@@ -15,25 +15,29 @@ import { getDefaultStore } from "../src/lib/document-store";
 import type { Check, OutlineSection } from "../src/lib/types";
 
 // Standalone scripts don't get Next.js's automatic .env loading, so do a
-// minimal version here: KEY=VALUE lines, '#' comments, optional quotes. A
-// value already present in the real environment (inline use) wins.
-function loadEnvLocal(): void {
-  const file = path.join(process.cwd(), ".env.local");
-  if (!fs.existsSync(file)) return;
-  for (const raw of fs.readFileSync(file, "utf8").split("\n")) {
-    const line = raw.trim();
-    if (!line || line.startsWith("#")) continue;
-    const eq = line.indexOf("=");
-    if (eq === -1) continue;
-    const key = line.slice(0, eq).trim();
-    let value = line.slice(eq + 1).trim();
-    if (
-      (value.startsWith('"') && value.endsWith('"')) ||
-      (value.startsWith("'") && value.endsWith("'"))
-    ) {
-      value = value.slice(1, -1);
+// minimal version here: KEY=VALUE lines, '#' comments, optional quotes.
+// Precedence mirrors Next.js — real environment > .env.local > .env. Files
+// are read .env.local first, and a key is only set if still unset, so the
+// real environment and earlier files win.
+function loadEnvFiles(): void {
+  for (const name of [".env.local", ".env"]) {
+    const file = path.join(process.cwd(), name);
+    if (!fs.existsSync(file)) continue;
+    for (const raw of fs.readFileSync(file, "utf8").split("\n")) {
+      const line = raw.trim();
+      if (!line || line.startsWith("#")) continue;
+      const eq = line.indexOf("=");
+      if (eq === -1) continue;
+      const key = line.slice(0, eq).trim();
+      let value = line.slice(eq + 1).trim();
+      if (
+        (value.startsWith('"') && value.endsWith('"')) ||
+        (value.startsWith("'") && value.endsWith("'"))
+      ) {
+        value = value.slice(1, -1);
+      }
+      if (key && process.env[key] === undefined) process.env[key] = value;
     }
-    if (key && process.env[key] === undefined) process.env[key] = value;
   }
 }
 
@@ -50,7 +54,7 @@ const QUESTION_GLYPH: Record<string, string> = {
 };
 
 async function main(): Promise<void> {
-  loadEnvLocal();
+  loadEnvFiles();
 
   if (!process.env.ANTHROPIC_API_KEY) {
     console.error(
