@@ -127,11 +127,21 @@ interface AnthropicResponse {
 // the dev signal that you forgot to set the key, not a bug).
 let _defaultProvider: LlmProvider | null = null;
 
-// True when a real LLM key is available. Server-only — used by route/page
-// code to tell the UI whether generation + validation are real or stubbed,
-// and by the startup check in `instrumentation.ts`.
-export function isLlmConfigured(): boolean {
-  return Boolean(process.env.ANTHROPIC_API_KEY);
+// What kind of ANTHROPIC_API_KEY (if any) is configured. Server-only — used
+// by route/page code to decide what to warn the user about.
+//  - "missing"     — no key; generation + evaluation fall back to the stub.
+//  - "oauth-token" — an `sk-ant-oat…` Claude-subscription / OAuth token. The
+//                    provider authenticates with the `x-api-key` header,
+//                    which only accepts API keys, so this 401s at request
+//                    time — present, but not usable.
+//  - "ok"          — looks like a usable API key.
+export type LlmKeyStatus = "missing" | "oauth-token" | "ok";
+
+export function getLlmKeyStatus(): LlmKeyStatus {
+  const key = process.env.ANTHROPIC_API_KEY;
+  if (!key) return "missing";
+  if (key.startsWith("sk-ant-oat")) return "oauth-token";
+  return "ok";
 }
 
 export function getDefaultProvider(): LlmProvider {

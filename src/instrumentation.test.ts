@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { register } from "./instrumentation";
-import { isLlmConfigured } from "@/lib/llm";
+import { getLlmKeyStatus } from "@/lib/llm";
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -45,11 +45,19 @@ describe("instrumentation — register()", () => {
   });
 });
 
-describe("isLlmConfigured()", () => {
-  it("reflects whether ANTHROPIC_API_KEY is set", () => {
-    vi.stubEnv("ANTHROPIC_API_KEY", "sk-ant-test");
-    expect(isLlmConfigured()).toBe(true);
+describe("getLlmKeyStatus()", () => {
+  it("returns 'missing' when ANTHROPIC_API_KEY is not set", () => {
     vi.stubEnv("ANTHROPIC_API_KEY", "");
-    expect(isLlmConfigured()).toBe(false);
+    expect(getLlmKeyStatus()).toBe("missing");
+  });
+
+  it("returns 'oauth-token' for an sk-ant-oat… token", () => {
+    vi.stubEnv("ANTHROPIC_API_KEY", "sk-ant-oat01-abc123");
+    expect(getLlmKeyStatus()).toBe("oauth-token");
+  });
+
+  it("returns 'ok' for an sk-ant-api… key", () => {
+    vi.stubEnv("ANTHROPIC_API_KEY", "sk-ant-api03-abc123");
+    expect(getLlmKeyStatus()).toBe("ok");
   });
 });

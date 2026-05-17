@@ -74,6 +74,15 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
+  if (process.env.ANTHROPIC_API_KEY.startsWith("sk-ant-oat")) {
+    console.warn(
+      "⚠ ANTHROPIC_API_KEY looks like an OAuth / Claude-subscription token\n" +
+        "  (sk-ant-oat…), not an API key. The provider authenticates with the\n" +
+        "  x-api-key header, so check evaluation will almost certainly 401.\n" +
+        "  Use an sk-ant-api03-… key for real results.\n"
+    );
+  }
+
   const target = process.argv[2];
   if (!target) {
     console.error(

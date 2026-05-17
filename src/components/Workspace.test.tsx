@@ -114,18 +114,26 @@ describe("Workspace shell", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows the stub-mode banner when no API key is configured", () => {
+  it("warns when no API key is configured", () => {
     const doc = newDocument("doc-1", "2026-04-29T00:00:00.000Z");
-    render(<Workspace document={doc} llmConfigured={false} />);
-    expect(screen.getByTestId("llm-stub-banner")).toHaveTextContent(
-      /ANTHROPIC_API_KEY/
+    render(<Workspace document={doc} llmKeyStatus="missing" />);
+    expect(screen.getByTestId("llm-key-warning")).toHaveTextContent(
+      /isn.t set/i
     );
   });
 
-  it("hides the stub-mode banner when an API key is configured", () => {
+  it("warns that an OAuth token won't work", () => {
     const doc = newDocument("doc-1", "2026-04-29T00:00:00.000Z");
-    render(<Workspace document={doc} llmConfigured />);
-    expect(screen.queryByTestId("llm-stub-banner")).toBeNull();
+    render(<Workspace document={doc} llmKeyStatus="oauth-token" />);
+    const banner = screen.getByTestId("llm-key-warning");
+    expect(banner).toHaveTextContent(/OAuth/);
+    expect(banner).toHaveTextContent(/won.t work/i);
+  });
+
+  it("shows no key warning when a usable API key is configured", () => {
+    const doc = newDocument("doc-1", "2026-04-29T00:00:00.000Z");
+    render(<Workspace document={doc} llmKeyStatus="ok" />);
+    expect(screen.queryByTestId("llm-key-warning")).toBeNull();
   });
 
   it("links to the examples gallery from the top bar", () => {

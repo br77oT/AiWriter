@@ -28,6 +28,7 @@ import { WorkspaceGuide } from "./WorkspaceGuide";
 import { useIsMobile } from "@/lib/useIsMobile";
 import { useReviewerMode } from "@/lib/useReviewerMode";
 import { getFixture } from "@/lib/validation/fixtures";
+import type { LlmKeyStatus } from "@/lib/llm";
 import type { PreserveFlags, SectionMode } from "@/lib/generation";
 import {
   applyTemplate,
@@ -38,9 +39,9 @@ import {
 
 interface WorkspaceProps {
   document: Document;
-  // False when ANTHROPIC_API_KEY is not set — generation + validation run
-  // against the echo stub. Defaults to true so tests opt in explicitly.
-  llmConfigured?: boolean;
+  // State of the configured LLM key. Defaults to "ok" so tests opt into the
+  // warning explicitly.
+  llmKeyStatus?: LlmKeyStatus;
 }
 
 const LAST_OPENED_KEY = "aiwriter:lastOpenedDocId";
@@ -64,7 +65,7 @@ interface RewriteTarget {
 
 export function Workspace({
   document: initial,
-  llmConfigured = true,
+  llmKeyStatus = "ok",
 }: WorkspaceProps) {
   const [document, setDocument] = useState<Document>(initial);
   const [report, setReport] = useState<ValidationReport | null>(null);
@@ -666,7 +667,7 @@ export function Workspace({
         onShareScenario={handleShareScenario}
         onToggleReviewerMode={setReviewerMode}
       />
-      {!llmConfigured && <LlmKeyWarning />}
+      {llmKeyStatus !== "ok" && <LlmKeyWarning status={llmKeyStatus} />}
       {isMobile ? (
         <MobileWorkspaceLayout
           sidebar={sidebar}
