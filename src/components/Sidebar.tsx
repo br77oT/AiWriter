@@ -67,12 +67,6 @@ export function Sidebar({
         >
           New document
         </button>
-        <Link
-          href="/scenarios"
-          className="mt-2 block text-center text-xs text-neutral-500 hover:text-neutral-800 hover:underline"
-        >
-          Scenario links
-        </Link>
       </div>
       <nav className="flex-1 overflow-y-auto p-2">
         <h2 className="px-2 pb-1 pt-2 text-xs font-semibold uppercase tracking-wide text-neutral-500">

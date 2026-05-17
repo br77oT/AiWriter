@@ -72,7 +72,7 @@ export function TopBar({
       )}
       <Link
         href="/scenarios"
-        className="text-sm text-neutral-600 hover:text-neutral-900 hover:underline"
+        className="text-sm font-medium text-blue-600 underline hover:text-blue-800"
       >
         Examples
       </Link>
