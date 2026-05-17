@@ -12,6 +12,7 @@ import path from "node:path";
 import { validate } from "../src/lib/validation";
 import { FIXTURES, getFixture } from "../src/lib/validation/fixtures";
 import { getDefaultStore } from "../src/lib/document-store";
+import { getDefaultProvider } from "../src/lib/llm";
 import type { Check, OutlineSection } from "../src/lib/types";
 
 // Standalone scripts don't get Next.js's automatic .env loading, so do a
@@ -123,6 +124,27 @@ async function main(): Promise<void> {
 
   console.log(`Validating ${label}`);
   console.log(`Sections: ${outline.length} · Checks: ${checks.length}\n`);
+
+  // Preflight: one cheap call to surface the *real* provider error (401, bad
+  // model id, network) up front, instead of letting validate() swallow every
+  // failure into a wall of "error" checks.
+  try {
+    await getDefaultProvider().complete({
+      systemPrompt: "Reply with the single word OK.",
+      messages: [{ role: "user", content: "ping" }],
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("✗ The check evaluator (Anthropic API) rejected a test call:\n");
+    console.error(`  ${message}\n`);
+    console.error("  Document checks cannot be evaluated. Common causes:");
+    console.error(
+      "  • 401 — the key is invalid, or an OAuth token (sk-ant-oat…) is being"
+    );
+    console.error("         used where an API key (sk-ant-api03-…) is required");
+    console.error("  • 404 model — the configured model id is invalid");
+    process.exit(1);
+  }
 
   const report = await validate(draft, outline, checks);
 
