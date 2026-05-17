@@ -9,6 +9,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "seed:scenarios": "npx tsx scripts/seed-scenarios.ts",
+    "validate": "npx tsx scripts/validate.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
