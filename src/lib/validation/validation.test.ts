@@ -146,6 +146,40 @@ describe("Question Evaluator", () => {
   });
 });
 
+describe("Question Evaluator — response parsing", () => {
+  it("parses a response wrapped in a ```json code fence", async () => {
+    const provider = createScriptedProvider(
+      () =>
+        '```json\n{"status":"answered","evidence":"At 14:32 a smoke event triggered evacuation."}\n```'
+    );
+    const report = await validate(
+      { summary: "At 14:32 a smoke event triggered evacuation." },
+      [outline[0]],
+      [checks[0]],
+      { provider }
+    );
+    expect(report.questions[0].status).toBe("answered");
+    expect(report.questions[0].evidence).toBe(
+      "At 14:32 a smoke event triggered evacuation."
+    );
+  });
+
+  it("parses JSON embedded in surrounding prose", async () => {
+    const provider = createScriptedProvider(
+      () =>
+        'Here is my evaluation:\n{"status":"missing","suggestion":"Add specifics."}\nHope that helps.'
+    );
+    const report = await validate(
+      { summary: "Vague." },
+      [outline[0]],
+      [checks[0]],
+      { provider }
+    );
+    expect(report.questions[0].status).toBe("missing");
+    expect(report.questions[0].suggestion).toMatch(/specifics/);
+  });
+});
+
 describe("Question Evaluator — evaluator failures", () => {
   it("reports error (not missing) when the evaluator returns non-JSON", async () => {
     const provider = createScriptedProvider(() => "Looks fine to me.");

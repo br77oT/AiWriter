@@ -102,6 +102,19 @@ const EVALUATOR_ERROR_SUGGESTION =
   "response, so the draft was not assessed against it. Re-run Validate; if it " +
   "persists, the check evaluator (an AI model) is unavailable.";
 
+// LLMs routinely wrap JSON in a ```json fence or add a sentence around it,
+// even when asked for "JSON only". Pull the JSON payload out before parsing:
+// a fenced block if present, otherwise the outermost {...} span.
+function extractJson(raw: string): string {
+  const text = raw.trim();
+  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fenced) return fenced[1]!.trim();
+  const first = text.indexOf("{");
+  const last = text.lastIndexOf("}");
+  if (first !== -1 && last > first) return text.slice(first, last + 1);
+  return text;
+}
+
 async function evaluateQuestions(
   draft: Record<string, string>,
   outline: OutlineSection[],
@@ -115,7 +128,7 @@ async function evaluateQuestions(
     const request = buildCheckRequest(draftText, check.question);
     try {
       const raw = await provider.complete(request);
-      const parsed = JSON.parse(raw) as RawCheckResponse;
+      const parsed = JSON.parse(extractJson(raw)) as RawCheckResponse;
       results.push(normalizeCheckResult(check.id, parsed));
     } catch {
       // The provider threw, or returned text that isn't JSON. The check was
