@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { DocumentSummary } from "@/lib/types";
 import type { Template } from "@/lib/templates";
+import { formatRelativeTime } from "@/lib/relative-time";
 
 interface SidebarProps {
   activeDocumentId: string;
@@ -83,13 +84,20 @@ export function Sidebar({
               <Link
                 href={`/documents/${doc.id}`}
                 className={
-                  "block truncate rounded px-2 py-1 text-sm " +
+                  "block rounded px-2 py-1 text-sm " +
                   (doc.id === activeDocumentId
                     ? "bg-neutral-100 font-medium"
                     : "hover:bg-neutral-50")
                 }
               >
-                {doc.title}
+                <div className="truncate">{doc.title}</div>
+                <div
+                  data-testid={`doc-row-time-${doc.id}`}
+                  className="truncate text-xs font-normal text-neutral-400"
+                  title={new Date(doc.updatedAt).toLocaleString()}
+                >
+                  {formatRelativeTime(doc.updatedAt)}
+                </div>
               </Link>
             </li>
           ))}
