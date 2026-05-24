@@ -72,22 +72,24 @@ export function ValidationRail({
       }
       aria-labelledby="validation-rail-heading"
     >
-      <div className="flex items-baseline justify-between">
-        <h2
-          id="validation-rail-heading"
-          className="text-sm font-semibold uppercase tracking-wide text-neutral-600"
-        >
-          Validation
-        </h2>
-        {report && <CoverageBadge score={report.coverageScore} />}
-      </div>
+      <h2
+        id="validation-rail-heading"
+        className="text-sm font-semibold uppercase tracking-wide text-neutral-600"
+      >
+        Validation
+      </h2>
       <p
         data-testid="validation-rail-description"
-        className="mb-3 text-xs text-neutral-500"
+        className="mb-3 mt-0.5 text-xs text-neutral-500"
       >
         How well the current draft meets the spec — each section&apos;s
         structural status plus answers to your checks.
       </p>
+      {report && (
+        <div className="mb-3">
+          <CoverageBadge score={report.coverageScore} />
+        </div>
+      )}
 
       {status === "running" && (
         <p className="text-neutral-500" data-testid="validation-status">
@@ -166,13 +168,19 @@ export function ValidationRail({
             {report.questions.length === 0 ? (
               <p className="text-neutral-400">No checks defined.</p>
             ) : (
-              <ul className="space-y-3">
-                {report.questions.map((q) => {
+              <ol className="space-y-3">
+                {report.questions.map((q, idx) => {
                   const badge = QUESTION_BADGE[q.status];
                   return (
                     <li key={q.checkId} className="border-l-2 border-neutral-200 pl-2">
                       <div className="flex items-baseline justify-between gap-2">
-                        <span className="text-neutral-800">
+                        <span className="min-w-0 flex-1 text-neutral-800">
+                          <span
+                            data-testid={`question-number-${q.checkId}`}
+                            className="mr-1 select-none text-xs text-neutral-400"
+                          >
+                            {idx + 1}.
+                          </span>
                           {questionFor(q.checkId)}
                         </span>
                         <span className={`text-xs font-medium ${badge.tone}`}>
@@ -194,7 +202,7 @@ export function ValidationRail({
                     </li>
                   );
                 })}
-              </ul>
+              </ol>
             )}
           </section>
 

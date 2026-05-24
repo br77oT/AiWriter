@@ -69,6 +69,34 @@ describe("ValidationRail — description", () => {
   });
 });
 
+describe("ValidationRail — numbered document checks", () => {
+  it("prefixes each question with its 1-based ordinal", () => {
+    const doc = {
+      ...makeDoc(),
+      checks: [
+        { id: "c1", question: "Who was affected?" },
+        { id: "c2", question: "What broke?" },
+      ],
+    };
+    const report: ValidationReport = {
+      structure: [],
+      questions: [
+        { checkId: "c1", status: "answered", evidence: "x" },
+        { checkId: "c2", status: "missing", suggestion: "y" },
+      ],
+      coverageScore: {
+        checksAnswered: 1,
+        checksTotal: 2,
+        sectionsPresent: 0,
+        sectionsTotal: 0,
+      },
+    };
+    render(<ValidationRail document={doc} report={report} status="idle" />);
+    expect(screen.getByTestId("question-number-c1")).toHaveTextContent("1.");
+    expect(screen.getByTestId("question-number-c2")).toHaveTextContent("2.");
+  });
+});
+
 describe("ValidationRail — autofix footer (slice 008)", () => {
   it("renders both autofix buttons when a report is present and onAutofix is wired", () => {
     render(
