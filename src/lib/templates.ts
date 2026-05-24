@@ -40,7 +40,7 @@ export const BUILT_IN_TEMPLATES: Template[] = [
       },
       outline: [
         { id: "summary", heading: "Summary", description: "One-paragraph recap of the incident.", required: true },
-        { id: "timeline", heading: "Timeline", description: "Chronological events with timestamps.", required: true },
+        { id: "timeline", heading: "Timeline", description: "Chronological events with timestamps.", required: true, format: "bullets" },
         { id: "root-cause", heading: "Root Cause", description: "What caused the incident.", required: true },
         { id: "impact", heading: "Impact", description: "Who was affected and how.", required: true },
         { id: "actions", heading: "Follow-up Actions", description: "Action items with owners and due dates.", required: true },
@@ -70,7 +70,7 @@ export const BUILT_IN_TEMPLATES: Template[] = [
       },
       outline: [
         { id: "summary", heading: "Summary", description: "Brief recap of the event and outcome.", required: true },
-        { id: "timeline", heading: "Timeline", description: "Sequence of events with timestamps.", required: true },
+        { id: "timeline", heading: "Timeline", description: "Sequence of events with timestamps.", required: true, format: "bullets" },
         { id: "root-cause", heading: "Root Cause", description: "Underlying cause analysis.", required: true },
         { id: "impact", heading: "Impact", description: "Scope and severity of the impact.", required: true },
         { id: "actions", heading: "Action Items", description: "Concrete follow-ups with owners.", required: true },
