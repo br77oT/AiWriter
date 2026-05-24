@@ -116,7 +116,7 @@ describe("Workspace shell", () => {
 
   it("warns when no API key is configured", () => {
     const doc = newDocument("doc-1", "2026-04-29T00:00:00.000Z");
-    render(<Workspace document={doc} llmKeyStatus="missing" />);
+    render(<Workspace document={doc} llmKeyStatus={{ kind: "missing" }} />);
     expect(screen.getByTestId("llm-key-warning")).toHaveTextContent(
       /isn.t set/i
     );
@@ -124,7 +124,9 @@ describe("Workspace shell", () => {
 
   it("warns that an OAuth token won't work", () => {
     const doc = newDocument("doc-1", "2026-04-29T00:00:00.000Z");
-    render(<Workspace document={doc} llmKeyStatus="oauth-token" />);
+    render(
+      <Workspace document={doc} llmKeyStatus={{ kind: "oauth-token" }} />
+    );
     const banner = screen.getByTestId("llm-key-warning");
     expect(banner).toHaveTextContent(/OAuth/);
     expect(banner).toHaveTextContent(/won.t work/i);
@@ -132,8 +134,21 @@ describe("Workspace shell", () => {
 
   it("shows no key warning when a usable API key is configured", () => {
     const doc = newDocument("doc-1", "2026-04-29T00:00:00.000Z");
-    render(<Workspace document={doc} llmKeyStatus="ok" />);
+    render(<Workspace document={doc} llmKeyStatus={{ kind: "ok" }} />);
     expect(screen.queryByTestId("llm-key-warning")).toBeNull();
+  });
+
+  it("shows the local-mode notice when LLM_PROVIDER=local", () => {
+    const doc = newDocument("doc-1", "2026-04-29T00:00:00.000Z");
+    render(
+      <Workspace
+        document={doc}
+        llmKeyStatus={{ kind: "local", localUrl: "ws://127.0.0.1:8787" }}
+      />
+    );
+    const banner = screen.getByTestId("llm-key-warning");
+    expect(banner).toHaveTextContent(/Local mode/);
+    expect(banner).toHaveTextContent("ws://127.0.0.1:8787");
   });
 
   it("links to the examples gallery from the top bar", () => {
@@ -152,7 +167,7 @@ describe("Workspace shell", () => {
       screen.getByRole("button", { name: /^save$/i })
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: /generate draft/i })
+      screen.getAllByRole("button", { name: /generate draft/i })[0]!
     ).toBeDisabled();
     expect(
       screen.getByRole("button", { name: /^validate$/i })
@@ -172,6 +187,122 @@ describe("Workspace shell", () => {
     expect(
       window.localStorage.getItem("aiwriter:lastOpenedDocId")
     ).toBe("doc-42");
+  });
+});
+
+describe("Workspace document actions (rename + delete)", () => {
+  it("clicking the title turns it into an input; Enter saves via PUT", async () => {
+    const puts: Array<{ url: string; body: { document: { title?: string } } }> =
+      [];
+    installFetch((input, init) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+      if (method === "PUT" && url.includes("/api/documents/")) {
+        puts.push({ url, body: JSON.parse(String(init?.body ?? "{}")) });
+        return {};
+      }
+      if (url.endsWith("/api/documents")) return { documents: [] };
+      if (url.endsWith("/api/templates")) return { templates: [] };
+      return {};
+    });
+
+    const doc = newDocument("doc-1", "2026-04-29T00:00:00.000Z");
+    render(<Workspace document={doc} />);
+
+    // Title starts as a button — click to enter edit mode.
+    const titleButton = screen.getByTestId("doc-title");
+    expect(titleButton).toHaveTextContent("Untitled document");
+    fireEvent.click(titleButton);
+
+    const input = screen.getByTestId("doc-title-input") as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "My new title" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    // The PUT call carries the new title.
+    await new Promise((r) => setTimeout(r, 0));
+    const titlePuts = puts.filter((p) => p.body.document?.title);
+    expect(titlePuts.length).toBeGreaterThan(0);
+    expect(titlePuts[0]!.body.document.title).toBe("My new title");
+    // Display flips back to a button with the new label.
+    expect(screen.getByTestId("doc-title")).toHaveTextContent("My new title");
+  });
+
+  it("Escape cancels the rename without sending a PUT", async () => {
+    const puts: Array<{ url: string; method: string }> = [];
+    installFetch((input, init) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+      if (method === "PUT" && url.includes("/api/documents/")) {
+        puts.push({ url, method });
+        return {};
+      }
+      if (url.endsWith("/api/documents")) return { documents: [] };
+      if (url.endsWith("/api/templates")) return { templates: [] };
+      return {};
+    });
+    const doc = newDocument("doc-1", "2026-04-29T00:00:00.000Z");
+    render(<Workspace document={doc} />);
+
+    fireEvent.click(screen.getByTestId("doc-title"));
+    const input = screen.getByTestId("doc-title-input") as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "Not saved" } });
+    fireEvent.keyDown(input, { key: "Escape" });
+
+    await new Promise((r) => setTimeout(r, 0));
+    expect(puts).toHaveLength(0);
+    expect(screen.getByTestId("doc-title")).toHaveTextContent(
+      "Untitled document"
+    );
+  });
+
+  it("Delete button confirms, then sends DELETE /api/documents/<id>", async () => {
+    const calls: Array<{ url: string; method: string }> = [];
+    installFetch((input, init) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+      calls.push({ url, method });
+      if (url.endsWith("/api/documents")) return { documents: [] };
+      if (url.endsWith("/api/templates")) return { templates: [] };
+      return { ok: true };
+    });
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+    const doc = newDocument("doc-del", "2026-04-29T00:00:00.000Z");
+    render(<Workspace document={doc} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /delete document/i }));
+    expect(confirmSpy).toHaveBeenCalled();
+
+    await new Promise((r) => setTimeout(r, 0));
+    const deletes = calls.filter(
+      (c) => c.method === "DELETE" && c.url.includes("/api/documents/doc-del")
+    );
+    expect(deletes).toHaveLength(1);
+
+    confirmSpy.mockRestore();
+  });
+
+  it("Delete does nothing when the confirmation is cancelled", async () => {
+    const calls: Array<{ url: string; method: string }> = [];
+    installFetch((input, init) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+      calls.push({ url, method });
+      if (url.endsWith("/api/documents")) return { documents: [] };
+      if (url.endsWith("/api/templates")) return { templates: [] };
+      return {};
+    });
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+    const doc = newDocument("doc-del-2", "2026-04-29T00:00:00.000Z");
+    render(<Workspace document={doc} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /delete document/i }));
+    expect(confirmSpy).toHaveBeenCalled();
+
+    await new Promise((r) => setTimeout(r, 0));
+    const deletes = calls.filter((c) => c.method === "DELETE");
+    expect(deletes).toHaveLength(0);
+
+    confirmSpy.mockRestore();
   });
 });
 
@@ -449,7 +580,7 @@ describe("Workspace generation flow", () => {
     const empty = newDocument("doc-empty", "2026-04-29T00:00:00.000Z");
     render(<Workspace document={empty} />);
     expect(
-      screen.getByRole("button", { name: /generate draft/i })
+      screen.getAllByRole("button", { name: /generate draft/i })[0]!
     ).toBeDisabled();
 
     cleanup();
@@ -462,7 +593,7 @@ describe("Workspace generation flow", () => {
     };
     render(<Workspace document={withOutline} />);
     expect(
-      screen.getByRole("button", { name: /generate draft/i })
+      screen.getAllByRole("button", { name: /generate draft/i })[0]!
     ).toBeEnabled();
   });
 
@@ -515,7 +646,7 @@ describe("Workspace generation flow", () => {
     };
     render(<Workspace document={doc} />);
 
-    fireEvent.click(screen.getByRole("button", { name: /generate draft/i }));
+    fireEvent.click(screen.getAllByRole("button", { name: /generate draft/i })[0]!);
 
     await waitFor(() =>
       expect(
@@ -530,6 +661,66 @@ describe("Workspace generation flow", () => {
         screen.getByLabelText(/Draft text for Summary/) as HTMLTextAreaElement
       ).toHaveValue("Generated summary prose.")
     );
+  });
+
+  it("Prompts button opens the inspector with the prompt log from the last Generate", async () => {
+    installFetch((input) => {
+      const url = String(input);
+      if (url.endsWith("/api/documents")) return { documents: [] };
+      if (url.endsWith("/api/generate")) {
+        return {
+          document: {
+            ...newDocument("doc-1", "2026-04-29T00:00:00.000Z"),
+            outline: [
+              { id: "summary", heading: "Summary", description: "", required: true },
+            ],
+            draftSections: { summary: "Generated summary prose." },
+          },
+          draftSections: { summary: "Generated summary prose." },
+          promptLog: {
+            kind: "Generate",
+            timestamp: "2026-05-18T12:00:00.000Z",
+            exchanges: [
+              {
+                systemPrompt: "You are a structured document drafter.",
+                messages: [
+                  { role: "user", content: 'Write the section "Summary".' },
+                ],
+                response: "Generated summary prose.",
+              },
+            ],
+          },
+        };
+      }
+      return {};
+    });
+
+    const doc = {
+      ...newDocument("doc-1", "2026-04-29T00:00:00.000Z"),
+      // Turn auto-validate off so the only LLM call is the Generate.
+      checksConfig: { evaluateAfterEveryGeneration: false, blockExportIfMissing: false },
+      outline: [
+        { id: "summary", heading: "Summary", description: "", required: true },
+      ],
+    };
+    render(<Workspace document={doc} />);
+
+    // Disabled until an LLM action has captured a prompt.
+    expect(screen.getByRole("button", { name: "Prompts" })).toBeDisabled();
+
+    fireEvent.click(screen.getAllByRole("button", { name: /generate draft/i })[0]!);
+
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Prompts" })).toBeEnabled()
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Prompts" }));
+
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByText("Prompt inspector")).toBeInTheDocument();
+    expect(
+      within(dialog).getByText('Write the section "Summary".')
+    ).toBeInTheDocument();
   });
 
   it("auto-validates after Generate when 'evaluate after every generation' is ON (default)", async () => {
@@ -581,7 +772,7 @@ describe("Workspace generation flow", () => {
     };
     render(<Workspace document={doc} />);
 
-    fireEvent.click(screen.getByRole("button", { name: /generate draft/i }));
+    fireEvent.click(screen.getAllByRole("button", { name: /generate draft/i })[0]!);
 
     await waitFor(() =>
       expect(
@@ -634,7 +825,7 @@ describe("Workspace generation flow", () => {
     };
     render(<Workspace document={doc} />);
 
-    fireEvent.click(screen.getByRole("button", { name: /generate draft/i }));
+    fireEvent.click(screen.getAllByRole("button", { name: /generate draft/i })[0]!);
 
     await waitFor(() =>
       expect(
@@ -1783,6 +1974,7 @@ describe("Workspace responsive layout (slice 013)", () => {
     expect(within(tablist).getByRole("tab", { name: /^outline$/i })).toBeInTheDocument();
     expect(within(tablist).getByRole("tab", { name: /^checks$/i })).toBeInTheDocument();
     expect(within(tablist).getByRole("tab", { name: /^draft$/i })).toBeInTheDocument();
+    expect(within(tablist).getByRole("tab", { name: /^assembled$/i })).toBeInTheDocument();
     expect(within(tablist).getByRole("tab", { name: /^validation$/i })).toBeInTheDocument();
 
     // Default tab is Spec — only the Spec pane heading is visible.
@@ -1794,7 +1986,7 @@ describe("Workspace responsive layout (slice 013)", () => {
 
     // Top-bar mutating actions remain reachable on mobile.
     expect(screen.getByRole("button", { name: /^validate$/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /generate draft/i })).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /generate draft/i })[0]!).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^export$/i })).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: /^template$/i })).toBeInTheDocument();
   });
@@ -1867,7 +2059,7 @@ describe("Workspace reviewer mode (slice 014)", () => {
     render(<Workspace document={doc} />);
 
     // Author mode (default): mutating actions are reachable.
-    expect(screen.getByRole("button", { name: /generate draft/i })).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /generate draft/i })[0]!).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^validate$/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^export$/i })).toBeInTheDocument();
     expect(screen.getByLabelText(/^goal$/i)).not.toBeDisabled();

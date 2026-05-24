@@ -12,20 +12,35 @@ function renderLayout() {
       outline={<div data-testid="pane-outline">Outline content</div>}
       checks={<div data-testid="pane-checks">Checks content</div>}
       draft={<div data-testid="pane-draft">Draft content</div>}
+      assembled={<div data-testid="pane-assembled">Assembled content</div>}
       validation={<div data-testid="pane-validation">Validation content</div>}
     />
   );
 }
 
 describe("MobileWorkspaceLayout", () => {
-  it("renders all five tabs with clear text labels", () => {
+  it("renders all six tabs with clear text labels", () => {
     renderLayout();
     const tablist = screen.getByRole("tablist", { name: /workspace panes/i });
     expect(within(tablist).getByRole("tab", { name: /^spec$/i })).toBeInTheDocument();
     expect(within(tablist).getByRole("tab", { name: /^outline$/i })).toBeInTheDocument();
     expect(within(tablist).getByRole("tab", { name: /^checks$/i })).toBeInTheDocument();
     expect(within(tablist).getByRole("tab", { name: /^draft$/i })).toBeInTheDocument();
+    expect(within(tablist).getByRole("tab", { name: /^assembled$/i })).toBeInTheDocument();
     expect(within(tablist).getByRole("tab", { name: /^validation$/i })).toBeInTheDocument();
+  });
+
+  it("Assembled tab swaps in the assembled-draft pane", () => {
+    renderLayout();
+    fireEvent.click(screen.getByRole("tab", { name: /^assembled$/i }));
+    expect(
+      screen.getByRole("tab", { name: /^assembled$/i })
+    ).toHaveAttribute("aria-selected", "true");
+    expect(
+      within(screen.getByTestId("mobile-active-pane-assembled")).getByTestId(
+        "pane-assembled"
+      )
+    ).toBeInTheDocument();
   });
 
   it("defaults to the Spec tab; only its pane is in the active-pane area", () => {

@@ -72,6 +72,13 @@ export function ChecksPane({
           Load template
         </button>
       </div>
+      <p
+        data-testid="checks-pane-description"
+        className="-mt-2 text-xs text-neutral-500"
+      >
+        Questions the finished draft must answer. Validation grades each one
+        and highlights gaps in the rail on the right.
+      </p>
 
       {checks.length === 0 ? (
         <p className="text-sm text-neutral-400">
@@ -83,7 +90,7 @@ export function ChecksPane({
           {checks.map((check, idx) => (
             <li
               key={check.id}
-              className="flex items-start gap-2 rounded border border-neutral-200 bg-neutral-50 p-2"
+              className="flex min-w-0 items-start gap-2 rounded border border-neutral-200 bg-neutral-50 p-2"
             >
               <span className="mt-1 select-none text-xs text-neutral-400">
                 {idx + 1}.
@@ -95,7 +102,11 @@ export function ChecksPane({
                 disabled={readOnly}
                 onChange={(e) => handleEdit(check.id, e.target.value)}
                 placeholder="What question must the draft answer?"
-                className="flex-1 rounded border border-neutral-300 bg-white px-2 py-1 text-sm disabled:bg-neutral-100 disabled:text-neutral-500"
+                // `min-w-0` lets a flex child shrink below its intrinsic
+                // content width; without it the default text-input width
+                // forces the row to overflow the gray container in a narrow
+                // pane.
+                className="min-w-0 flex-1 rounded border border-neutral-300 bg-white px-2 py-1 text-sm disabled:bg-neutral-100 disabled:text-neutral-500"
               />
               {!readOnly && (
                 <button

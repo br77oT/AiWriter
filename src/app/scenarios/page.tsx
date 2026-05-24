@@ -11,7 +11,7 @@ export default function ScenariosPage() {
   const keyStatus = getLlmKeyStatus();
   return (
     <div className="flex h-full flex-col">
-      {keyStatus !== "ok" && <LlmKeyWarning status={keyStatus} />}
+      {keyStatus.kind !== "ok" && <LlmKeyWarning status={keyStatus} />}
       <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-4 overflow-y-auto p-6">
         <div className="flex items-baseline justify-between">
           <h1 className="text-lg font-semibold tracking-tight">

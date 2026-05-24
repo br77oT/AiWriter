@@ -8,6 +8,10 @@ interface DraftPaneProps {
   onLockToggle: (outlineId: string, locked: boolean) => void;
   onRewrite: (outlineId: string) => void;
   onExpand: (outlineId: string) => void;
+  // Optional in reviewer mode (no Generate buttons rendered there).
+  onGenerate?: () => void;
+  generating?: boolean;
+  canGenerate?: boolean;
   readOnly?: boolean;
 }
 
@@ -17,16 +21,24 @@ interface DraftPaneProps {
 //   semantics are hard").
 // - Rewrite + Expand buttons open the Section Rewrite Modal preset for the
 //   appropriate mode.
+// - Generate Draft buttons at top + bottom so the action is reachable
+//   without scrolling whichever direction the user is currently moving.
+// The stitched read-only view lives in its own AssembledDraftPane so users
+// can put it side-by-side with the Outline or any other pane.
 export function DraftPane({
   document,
   onDraftSectionChange,
   onLockToggle,
   onRewrite,
   onExpand,
+  onGenerate,
+  generating = false,
+  canGenerate = false,
   readOnly = false,
 }: DraftPaneProps) {
   const sections = document.outline;
   const lockedIds = new Set(document.lockedSectionIds);
+  const showGenerate = !readOnly && Boolean(onGenerate);
 
   return (
     <section
@@ -40,6 +52,15 @@ export function DraftPane({
         Draft
       </h2>
 
+      {showGenerate && (
+        <GenerateDraftButton
+          position="top"
+          generating={generating}
+          canGenerate={canGenerate}
+          onGenerate={onGenerate!}
+        />
+      )}
+
       {sections.length === 0 ? (
         <p className="text-sm text-neutral-400">
           Outline is empty — load a fixture from the top bar (dev) or build the
@@ -47,7 +68,7 @@ export function DraftPane({
         </p>
       ) : (
         <div className="space-y-4">
-          {sections.map((section) => {
+          {sections.map((section, index) => {
             const locked = lockedIds.has(section.id);
             const isEmpty =
               (document.draftSections[section.id] ?? "").trim() === "";
@@ -55,6 +76,12 @@ export function DraftPane({
               <div key={section.id}>
                 <div className="mb-1 flex items-center justify-between gap-2">
                   <label className="text-sm font-medium text-neutral-800">
+                    <span
+                      data-testid={`section-prompt-number-${section.id}`}
+                      className="mr-1 text-neutral-500"
+                    >
+                      {index + 1}.
+                    </span>
                     {section.heading}
                     {!section.required && (
                       <span className="ml-1 text-xs text-neutral-400">
@@ -131,9 +158,71 @@ export function DraftPane({
           })}
         </div>
       )}
+
+      {showGenerate && sections.length > 0 && (
+        <GenerateDraftButton
+          position="bottom"
+          generating={generating}
+          canGenerate={canGenerate}
+          onGenerate={onGenerate!}
+        />
+      )}
     </section>
   );
 }
+
+function GenerateDraftButton({
+  position,
+  generating,
+  canGenerate,
+  onGenerate,
+}: {
+  position: "top" | "bottom";
+  generating: boolean;
+  canGenerate: boolean;
+  onGenerate: () => void;
+}) {
+  const isTop = position === "top";
+  return (
+    <div
+      className={
+        isTop
+          ? "mb-3 flex items-center justify-end gap-3"
+          : "mt-4 flex justify-end border-t border-neutral-200 pt-3"
+      }
+    >
+      {isTop && (
+        <p
+          data-testid="draft-generate-explainer"
+          className="text-xs text-neutral-500"
+        >
+          The numbered prompts below will be combined into a final draft.
+        </p>
+      )}
+      <button
+        type="button"
+        data-testid={`draft-generate-${position}`}
+        onClick={onGenerate}
+        disabled={generating || !canGenerate}
+        title={
+          canGenerate
+            ? undefined
+            : "Add at least one outline section to generate."
+        }
+        className="inline-flex items-center gap-1 rounded border border-neutral-300 bg-white px-3 py-1 text-sm hover:bg-neutral-100 disabled:bg-neutral-100 disabled:text-neutral-400"
+      >
+        <span>{generating ? "Generating…" : "Generate Draft"}</span>
+        {/* Down arrow on both buttons — the click produces a draft below
+            (the Assembled draft section). aria-hidden so screen readers
+            hear only "Generate Draft". */}
+        <span aria-hidden="true" className="text-neutral-500">
+          ↓
+        </span>
+      </button>
+    </div>
+  );
+}
+
 
 // A worked example written out for the section, so the writer sees what a
 // finished section looks like instead of facing an empty box or a list of

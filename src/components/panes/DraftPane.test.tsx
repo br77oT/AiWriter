@@ -300,3 +300,136 @@ describe("DraftPane — Insert example text", () => {
     ).toBeDisabled();
   });
 });
+
+describe("DraftPane — Generate buttons", () => {
+  it("renders top and bottom Generate buttons when onGenerate is provided", () => {
+    const onGenerate = vi.fn();
+    render(
+      <DraftPane
+        document={makeDoc()}
+        onDraftSectionChange={() => {}}
+        onLockToggle={() => {}}
+        onRewrite={() => {}}
+        onExpand={() => {}}
+        onGenerate={onGenerate}
+        canGenerate
+      />
+    );
+    expect(screen.getByTestId("draft-generate-top")).toBeInTheDocument();
+    expect(screen.getByTestId("draft-generate-bottom")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("draft-generate-top"));
+    fireEvent.click(screen.getByTestId("draft-generate-bottom"));
+    expect(onGenerate).toHaveBeenCalledTimes(2);
+  });
+
+  it("disables both Generate buttons while generating", () => {
+    render(
+      <DraftPane
+        document={makeDoc()}
+        onDraftSectionChange={() => {}}
+        onLockToggle={() => {}}
+        onRewrite={() => {}}
+        onExpand={() => {}}
+        onGenerate={() => {}}
+        canGenerate
+        generating
+      />
+    );
+    expect(screen.getByTestId("draft-generate-top")).toBeDisabled();
+    expect(screen.getByTestId("draft-generate-bottom")).toBeDisabled();
+  });
+
+  it("shows the explainer + a down-arrow on both Generate buttons", () => {
+    render(
+      <DraftPane
+        document={makeDoc()}
+        onDraftSectionChange={() => {}}
+        onLockToggle={() => {}}
+        onRewrite={() => {}}
+        onExpand={() => {}}
+        onGenerate={() => {}}
+        canGenerate
+      />
+    );
+    // Explainer copy lives left of the top button only.
+    expect(screen.getByTestId("draft-generate-explainer")).toHaveTextContent(
+      /numbered prompts below will be combined into a final draft/i
+    );
+    // Both buttons point downward — the click produces a draft in the
+    // Assembled draft section below.
+    expect(screen.getByTestId("draft-generate-top")).toHaveTextContent("↓");
+    expect(screen.getByTestId("draft-generate-bottom")).toHaveTextContent(
+      "↓"
+    );
+  });
+
+  it("numbers each section prompt by its outline position", () => {
+    render(
+      <DraftPane
+        document={makeDoc()}
+        onDraftSectionChange={() => {}}
+        onLockToggle={() => {}}
+        onRewrite={() => {}}
+        onExpand={() => {}}
+      />
+    );
+    expect(screen.getByTestId("section-prompt-number-summary")).toHaveTextContent(
+      "1."
+    );
+    expect(screen.getByTestId("section-prompt-number-impact")).toHaveTextContent(
+      "2."
+    );
+  });
+
+  it("hides the bottom Generate button when the outline is empty", () => {
+    // No sections to anchor to → the bottom button would render below empty
+    // space; keep just the top one as the only call-to-action.
+    render(
+      <DraftPane
+        document={{ ...makeDoc(), outline: [], draftSections: {} }}
+        onDraftSectionChange={() => {}}
+        onLockToggle={() => {}}
+        onRewrite={() => {}}
+        onExpand={() => {}}
+        onGenerate={() => {}}
+        canGenerate={false}
+      />
+    );
+    expect(screen.getByTestId("draft-generate-top")).toBeInTheDocument();
+    expect(screen.queryByTestId("draft-generate-bottom")).toBeNull();
+  });
+
+  it("renders no Generate buttons in reviewer (readOnly) mode", () => {
+    render(
+      <DraftPane
+        document={makeDoc()}
+        onDraftSectionChange={() => {}}
+        onLockToggle={() => {}}
+        onRewrite={() => {}}
+        onExpand={() => {}}
+        onGenerate={() => {}}
+        readOnly
+      />
+    );
+    expect(screen.queryByTestId("draft-generate-top")).toBeNull();
+    expect(screen.queryByTestId("draft-generate-bottom")).toBeNull();
+  });
+});
+
+describe("DraftPane — assembled draft preview", () => {
+  it("does not render the assembled draft inside the Draft pane anymore", () => {
+    // Moved to its own AssembledDraftPane (sits next to DraftPane in the
+    // workspace grid). Keeping this test pinned so a future revert is loud.
+    render(
+      <DraftPane
+        document={makeDoc()}
+        onDraftSectionChange={() => {}}
+        onLockToggle={() => {}}
+        onRewrite={() => {}}
+        onExpand={() => {}}
+      />
+    );
+    expect(screen.queryByTestId("assembled-draft")).toBeNull();
+    expect(screen.queryByTestId("assembled-draft-description")).toBeNull();
+  });
+});

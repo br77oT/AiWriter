@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { FIXTURES } from "@/lib/validation/fixtures";
 import type { Template } from "@/lib/templates";
@@ -15,6 +15,9 @@ interface TopBarProps {
   selectedTemplateId: string | null;
   canSaveAsTemplate: boolean;
   versionCount: number;
+  // Whether an LLM action has run this session, so the Prompts button has a
+  // transcript to show.
+  hasPromptLog: boolean;
   reviewerMode: boolean;
   onValidate: () => void;
   onGenerate: () => void;
@@ -22,9 +25,13 @@ interface TopBarProps {
   onSelectTemplate: (templateId: string) => void;
   onSaveAsTemplate: () => void;
   onOpenHistory: () => void;
+  onOpenPrompts: () => void;
   onOpenExport: () => void;
   onShareScenario: () => void;
   onToggleReviewerMode: (next: boolean) => void;
+  // Document-level actions. Omitted in reviewer mode (the buttons hide).
+  onRenameDocument?: (nextTitle: string) => void;
+  onDeleteDocument?: () => void;
 }
 
 // Top bar shell. In reviewer mode (slice 014), mutating actions are hidden:
@@ -42,6 +49,7 @@ export function TopBar({
   selectedTemplateId,
   canSaveAsTemplate,
   versionCount,
+  hasPromptLog,
   reviewerMode,
   onValidate,
   onGenerate,
@@ -49,9 +57,12 @@ export function TopBar({
   onSelectTemplate,
   onSaveAsTemplate,
   onOpenHistory,
+  onOpenPrompts,
   onOpenExport,
   onShareScenario,
   onToggleReviewerMode,
+  onRenameDocument,
+  onDeleteDocument,
 }: TopBarProps) {
   const [fixture, setFixture] = useState("");
 
@@ -59,9 +70,27 @@ export function TopBar({
     <header className="flex flex-wrap items-center gap-3 border-b border-neutral-200 bg-white px-4 py-2">
       <span className="font-semibold tracking-tight">AiWriter</span>
       <span className="text-neutral-400">·</span>
-      <span className="text-sm text-neutral-700" data-testid="doc-title">
-        {documentTitle}
-      </span>
+      <DocumentTitle
+        title={documentTitle}
+        editable={!reviewerMode && Boolean(onRenameDocument)}
+        onRename={onRenameDocument}
+      />
+      {!reviewerMode && onDeleteDocument && (
+        <button
+          type="button"
+          aria-label="Delete document"
+          title="Delete this document. This cannot be undone."
+          onClick={() => {
+            const ok = window.confirm(
+              `Delete "${documentTitle}"? This cannot be undone.`
+            );
+            if (ok) onDeleteDocument();
+          }}
+          className="rounded border border-red-300 bg-white px-2 py-0.5 text-xs text-red-700 hover:bg-red-50"
+        >
+          Delete
+        </button>
+      )}
       {reviewerMode && (
         <span
           data-testid="reviewer-mode-badge"
@@ -151,6 +180,19 @@ export function TopBar({
         >
           History{versionCount > 0 ? ` (${versionCount})` : ""}
         </button>
+        <button
+          type="button"
+          onClick={onOpenPrompts}
+          disabled={!hasPromptLog}
+          title={
+            hasPromptLog
+              ? "Show the exact prompt sent to the LLM by the last action."
+              : "Run Generate, Validate, Rewrite, or Auto-fix to capture a prompt."
+          }
+          className="rounded border border-neutral-300 bg-white px-3 py-1 text-sm hover:bg-neutral-100 disabled:bg-neutral-100 disabled:text-neutral-400"
+        >
+          Prompts
+        </button>
         {!reviewerMode && (
           <button
             type="button"
@@ -211,5 +253,83 @@ export function TopBar({
         )}
       </div>
     </header>
+  );
+}
+
+// Inline-editable title. Clicking the title (when editable) flips it into a
+// text input. Enter or blur commits; Escape cancels. Blank titles fall back
+// to "Untitled document" so the sidebar always has something to render.
+function DocumentTitle({
+  title,
+  editable,
+  onRename,
+}: {
+  title: string;
+  editable: boolean;
+  onRename?: (next: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(title);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  // Stay in sync if the doc gets renamed elsewhere while we're not editing.
+  useEffect(() => {
+    if (!editing) setDraft(title);
+  }, [title, editing]);
+
+  useEffect(() => {
+    if (editing) inputRef.current?.select();
+  }, [editing]);
+
+  const commit = () => {
+    const next = draft.trim() || "Untitled document";
+    setEditing(false);
+    setDraft(next);
+    if (next !== title) onRename?.(next);
+  };
+  const cancel = () => {
+    setDraft(title);
+    setEditing(false);
+  };
+
+  if (!editable) {
+    return (
+      <span className="text-sm text-neutral-700" data-testid="doc-title">
+        {title}
+      </span>
+    );
+  }
+  if (!editing) {
+    return (
+      <button
+        type="button"
+        data-testid="doc-title"
+        title="Click to rename"
+        onClick={() => setEditing(true)}
+        className="rounded text-sm text-neutral-700 hover:bg-neutral-100 px-1 -mx-1"
+      >
+        {title}
+      </button>
+    );
+  }
+  return (
+    <input
+      ref={inputRef}
+      data-testid="doc-title-input"
+      aria-label="Rename document"
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          commit();
+        } else if (e.key === "Escape") {
+          e.preventDefault();
+          cancel();
+        }
+      }}
+      className="rounded border border-neutral-300 bg-white px-1 py-0.5 text-sm text-neutral-800"
+    />
   );
 }

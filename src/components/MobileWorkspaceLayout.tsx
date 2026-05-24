@@ -2,7 +2,13 @@
 
 import { useState, type ReactNode } from "react";
 
-export type MobilePaneId = "spec" | "outline" | "checks" | "draft" | "validation";
+export type MobilePaneId =
+  | "spec"
+  | "outline"
+  | "checks"
+  | "draft"
+  | "assembled"
+  | "validation";
 
 interface MobileWorkspaceLayoutProps {
   sidebar: ReactNode;
@@ -10,6 +16,7 @@ interface MobileWorkspaceLayoutProps {
   outline: ReactNode;
   checks: ReactNode;
   draft: ReactNode;
+  assembled: ReactNode;
   validation: ReactNode;
 }
 
@@ -18,19 +25,21 @@ const TABS: Array<{ id: MobilePaneId; label: string }> = [
   { id: "outline", label: "Outline" },
   { id: "checks", label: "Checks" },
   { id: "draft", label: "Draft" },
+  { id: "assembled", label: "Assembled" },
   { id: "validation", label: "Validation" },
 ];
 
 // Mobile workspace shell: a Menu button (opens the sidebar drawer) + a tab bar
-// (Spec / Outline / Checks / Draft / Validation) + the active pane in the
-// content area. Every label is plain text — no icon-only buttons (per PRD
-// user story 35).
+// (Spec / Outline / Checks / Draft / Assembled / Validation) + the active pane
+// in the content area. Every label is plain text — no icon-only buttons
+// (per PRD user story 35).
 export function MobileWorkspaceLayout({
   sidebar,
   spec,
   outline,
   checks,
   draft,
+  assembled,
   validation,
 }: MobileWorkspaceLayoutProps) {
   const [activeTab, setActiveTab] = useState<MobilePaneId>("spec");
@@ -41,6 +50,7 @@ export function MobileWorkspaceLayout({
     outline,
     checks,
     draft,
+    assembled,
     validation,
   };
 

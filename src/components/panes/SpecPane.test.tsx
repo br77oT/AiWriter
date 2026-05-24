@@ -11,6 +11,15 @@ function spec(overrides: Partial<Spec> = {}): Spec {
   return { ...emptySpec(), ...overrides };
 }
 
+describe("SpecPane — description", () => {
+  it("shows a one-line explainer under the heading", () => {
+    render(<SpecPane spec={spec()} onSpecChange={vi.fn()} />);
+    expect(screen.getByTestId("spec-pane-description")).toHaveTextContent(
+      /what the document is about/i
+    );
+  });
+});
+
 describe("SpecPane", () => {
   it("renders all five fields populated from the current spec", () => {
     const onChange = vi.fn();

@@ -7,6 +7,7 @@ import { GET as listGET, POST as createPOST } from "./route";
 import {
   GET as getOneGET,
   PUT as updatePUT,
+  DELETE as deleteDELETE,
 } from "./[id]/route";
 
 describe("/api/documents route handlers", () => {
@@ -48,6 +49,27 @@ describe("/api/documents route handlers", () => {
       params: Promise.resolve({ id: "no-such-id" }),
     });
     expect(missing.status).toBe(404);
+  });
+
+  it("DELETE /[id] removes the document; 404 on unknown id", async () => {
+    const created = await createPOST();
+    const { document } = await created.json();
+
+    const ok = await deleteDELETE(new Request("http://t/", { method: "DELETE" }), {
+      params: Promise.resolve({ id: document.id }),
+    });
+    expect(ok.status).toBe(200);
+
+    const missing = await getOneGET(new Request("http://t/"), {
+      params: Promise.resolve({ id: document.id }),
+    });
+    expect(missing.status).toBe(404);
+
+    const repeat = await deleteDELETE(
+      new Request("http://t/", { method: "DELETE" }),
+      { params: Promise.resolve({ id: document.id }) }
+    );
+    expect(repeat.status).toBe(404);
   });
 
   it("PUT /[id] updates the document", async () => {

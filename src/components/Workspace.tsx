@@ -16,10 +16,12 @@ import { SpecPane } from "./panes/SpecPane";
 import { OutlinePane } from "./panes/OutlinePane";
 import { ChecksPane } from "./panes/ChecksPane";
 import { DraftPane } from "./panes/DraftPane";
+import { AssembledDraftPane } from "./panes/AssembledDraftPane";
 import { ValidationRail, type AutofixMode } from "./panes/ValidationRail";
 import { SectionRewriteModal } from "./SectionRewriteModal";
 import { TemplatePickerModal } from "./TemplatePickerModal";
 import { VersionHistoryPanel } from "./VersionHistoryPanel";
+import { PromptInspectorPanel } from "./PromptInspectorPanel";
 import { ExportPopover } from "./ExportPopover";
 import { LlmKeyWarning } from "./LlmKeyWarning";
 import { ScenarioShareModal } from "./ScenarioShareModal";
@@ -28,7 +30,7 @@ import { WorkspaceGuide } from "./WorkspaceGuide";
 import { useIsMobile } from "@/lib/useIsMobile";
 import { useReviewerMode } from "@/lib/useReviewerMode";
 import { getFixture } from "@/lib/validation/fixtures";
-import type { LlmKeyStatus } from "@/lib/llm";
+import type { LlmKeyStatus, PromptLog } from "@/lib/llm";
 import type { PreserveFlags, SectionMode } from "@/lib/generation";
 import {
   applyTemplate,
@@ -48,10 +50,17 @@ const LAST_OPENED_KEY = "aiwriter:lastOpenedDocId";
 const COLLAPSED_PANES_KEY = "aiwriter:collapsedPanes";
 const REVALIDATE_DEBOUNCE_MS = 600;
 
-// The three left-hand panes the user can collapse to declutter the workspace.
-// Draft and the validation rail are never collapsible — they're the focus.
-type CollapsiblePaneId = "spec" | "outline" | "checks";
-const COLLAPSIBLE_PANE_IDS: CollapsiblePaneId[] = ["spec", "outline", "checks"];
+// Panes the user can collapse to declutter the workspace. Draft and the
+// validation rail are never collapsible — they're the focus. "assembled"
+// (the read-only stitched preview) is collapsed by default so the workspace
+// stays focused on the editing surface until the user explicitly opens it.
+type CollapsiblePaneId = "spec" | "outline" | "checks" | "assembled";
+const COLLAPSIBLE_PANE_IDS: CollapsiblePaneId[] = [
+  "spec",
+  "outline",
+  "checks",
+  "assembled",
+];
 
 type ValidationStatus = "idle" | "running" | "error";
 type GenerationStatus = "idle" | "running" | "error";
@@ -65,7 +74,7 @@ interface RewriteTarget {
 
 export function Workspace({
   document: initial,
-  llmKeyStatus = "ok",
+  llmKeyStatus = { kind: "ok" },
 }: WorkspaceProps) {
   const [document, setDocument] = useState<Document>(initial);
   const [report, setReport] = useState<ValidationReport | null>(null);
@@ -84,6 +93,10 @@ export function Workspace({
     null
   );
   const [exportOpen, setExportOpen] = useState(false);
+  // The prompt transcript from the most recent LLM action (Generate, Validate,
+  // Rewrite/Expand, Auto-fix) and whether the inspector panel is open.
+  const [promptLog, setPromptLog] = useState<PromptLog | null>(null);
+  const [promptsOpen, setPromptsOpen] = useState(false);
   const [scenarioShareOpen, setScenarioShareOpen] = useState(false);
   const [scenarioBusy, setScenarioBusy] = useState(false);
   const [scenarioLink, setScenarioLink] = useState<string | null>(null);
@@ -190,16 +203,22 @@ export function Workspace({
         body: JSON.stringify({ documentId: document.id }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const { report: next, document: nextDoc } = (await res.json()) as {
+      const {
+        report: next,
+        document: nextDoc,
+        promptLog: log,
+      } = (await res.json()) as {
         report: ValidationReport;
         // Slice 011: validate now snapshots a Version, so the route also
         // returns the updated document.
         document?: Document;
+        promptLog?: PromptLog;
       };
       // Stale response — a newer request has been kicked off since.
       if (seq !== requestSeqRef.current) return;
       setReport(next);
       if (nextDoc) setDocument(nextDoc);
+      if (log) setPromptLog(log);
       setStatus("idle");
     } catch {
       if (seq !== requestSeqRef.current) return;
@@ -229,6 +248,7 @@ export function Workspace({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           document: {
+            title: next.title,
             spec: next.spec,
             outline: next.outline,
             checks: next.checks,
@@ -334,8 +354,12 @@ export function Workspace({
           }),
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const { document: next } = (await res.json()) as { document: Document };
+        const { document: next, promptLog: log } = (await res.json()) as {
+          document: Document;
+          promptLog?: PromptLog;
+        };
         setDocument(next);
+        if (log) setPromptLog(log);
         setRewriteTarget(null);
         if (document.checksConfig.evaluateAfterEveryGeneration) {
           void runValidate();
@@ -364,8 +388,12 @@ export function Workspace({
         body: JSON.stringify({ documentId: document.id }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const { document: next } = (await res.json()) as { document: Document };
+      const { document: next, promptLog: log } = (await res.json()) as {
+        document: Document;
+        promptLog?: PromptLog;
+      };
       setDocument(next);
+      if (log) setPromptLog(log);
       setGenStatus("idle");
       // PRD §"Checks Module": when "Evaluate after every generation" is ON
       // (default), validate immediately so the rail flips to fresh statuses
@@ -388,12 +416,18 @@ export function Workspace({
           body: JSON.stringify({ documentId: document.id, mode }),
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const { document: next, lockedSkipped: skipped } = (await res.json()) as {
+        const {
+          document: next,
+          lockedSkipped: skipped,
+          promptLog: log,
+        } = (await res.json()) as {
           document: Document;
           lockedSkipped: string[];
+          promptLog?: PromptLog;
         };
         setDocument(next);
         setLockedSkipped(skipped ?? []);
+        if (log) setPromptLog(log);
         setAutofixStatus("idle");
         // Re-validate so the rail flips statuses for the regenerated sections.
         // Slice 008 acceptance: "After either action, validation re-runs and
@@ -457,6 +491,29 @@ export function Workspace({
     router.push("/onboarding");
   }, [router]);
 
+  // Inline rename from the TopBar. Title is persisted by the same PUT path
+  // used for every other Document field.
+  const handleRenameDocument = useCallback(
+    (nextTitle: string) => {
+      if (nextTitle === document.title) return;
+      void persistDocument({ ...document, title: nextTitle });
+    },
+    [document, persistDocument]
+  );
+
+  // Delete the whole document; on success route to onboarding so the user
+  // lands on a sane next-step screen instead of a stale workspace.
+  const handleDeleteDocument = useCallback(async () => {
+    const res = await fetch(`/api/documents/${document.id}`, {
+      method: "DELETE",
+    });
+    if (!res.ok) {
+      window.alert("Could not delete the document. Try again.");
+      return;
+    }
+    router.push("/onboarding");
+  }, [document.id, router]);
+
   // "Write the draft" guide step: bring the first draft section into view and
   // focus it. The Draft pane is always rendered, so this is a scroll+focus
   // rather than a navigation.
@@ -470,6 +527,9 @@ export function Workspace({
 
   const handleOpenHistory = useCallback(() => setHistoryOpen(true), []);
   const handleCloseHistory = useCallback(() => setHistoryOpen(false), []);
+
+  const handleOpenPrompts = useCallback(() => setPromptsOpen(true), []);
+  const handleClosePrompts = useCallback(() => setPromptsOpen(false), []);
 
   // PRD §user story 33: opening Export with no current report should run
   // validate first so the block-if-missing check has fresh data. Use the
@@ -628,7 +688,19 @@ export function Workspace({
       onLockToggle={handleLockToggle}
       onRewrite={openRewriteModal("rewrite")}
       onExpand={openRewriteModal("expand")}
+      onGenerate={reviewerMode ? undefined : handleGenerate}
+      generating={genStatus === "running"}
+      canGenerate={document.outline.length > 0}
       readOnly={reviewerMode}
+    />
+  );
+  const assembledDraftPane = (
+    <AssembledDraftPane
+      document={document}
+      collapsed={!isMobile && collapsedPanes.has("assembled")}
+      onToggleCollapse={
+        isMobile ? undefined : () => togglePaneCollapsed("assembled")
+      }
     />
   );
   const validationRail = (
@@ -663,11 +735,17 @@ export function Workspace({
         onSelectTemplate={handleSelectTemplate}
         onSaveAsTemplate={handleSaveAsTemplate}
         onOpenHistory={handleOpenHistory}
+        onOpenPrompts={handleOpenPrompts}
+        hasPromptLog={promptLog !== null}
         onOpenExport={handleOpenExport}
         onShareScenario={handleShareScenario}
         onToggleReviewerMode={setReviewerMode}
+        onRenameDocument={handleRenameDocument}
+        onDeleteDocument={handleDeleteDocument}
       />
-      {llmKeyStatus !== "ok" && <LlmKeyWarning status={llmKeyStatus} />}
+      {llmKeyStatus && llmKeyStatus.kind !== "ok" && (
+        <LlmKeyWarning status={llmKeyStatus} />
+      )}
       {isMobile ? (
         <MobileWorkspaceLayout
           sidebar={sidebar}
@@ -675,6 +753,7 @@ export function Workspace({
           outline={outlinePane}
           checks={checksPane}
           draft={draftPane}
+          assembled={assembledDraftPane}
           validation={validationRail}
         />
       ) : (
@@ -685,11 +764,14 @@ export function Workspace({
             style={{
               // Collapsed panes shrink to a thin strip; the freed width flows
               // to the Draft column (1fr), which is the actual writing surface.
+              // When the Assembled pane is expanded it takes 1fr too, so Draft
+              // and Assembled share width 50/50 side-by-side.
               gridTemplateColumns: [
                 collapsedPanes.has("spec") ? "2.5rem" : "260px",
                 collapsedPanes.has("outline") ? "2.5rem" : "260px",
                 collapsedPanes.has("checks") ? "2.5rem" : "260px",
                 "1fr",
+                collapsedPanes.has("assembled") ? "2.5rem" : "1fr",
               ].join(" "),
             }}
           >
@@ -697,6 +779,7 @@ export function Workspace({
             {outlinePane}
             {checksPane}
             {draftPane}
+            {assembledDraftPane}
           </main>
           {validationRail}
         </div>
@@ -733,6 +816,9 @@ export function Workspace({
           report={report}
           onClose={handleCloseExport}
         />
+      )}
+      {promptsOpen && (
+        <PromptInspectorPanel log={promptLog} onClose={handleClosePrompts} />
       )}
       {scenarioShareOpen && (
         <ScenarioShareModal

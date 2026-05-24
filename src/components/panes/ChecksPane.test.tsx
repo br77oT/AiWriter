@@ -17,6 +17,23 @@ function cfg(overrides: Partial<ChecksConfig> = {}): ChecksConfig {
 
 function noop() {}
 
+describe("ChecksPane — description", () => {
+  it("shows a one-line explainer under the heading", () => {
+    render(
+      <ChecksPane
+        checks={[]}
+        checksConfig={cfg()}
+        onChecksChange={noop}
+        onChecksConfigChange={noop}
+        onLoadTemplate={noop}
+      />
+    );
+    expect(
+      screen.getByTestId("checks-pane-description")
+    ).toHaveTextContent(/questions the finished draft must answer/i);
+  });
+});
+
 describe("ChecksPane — rendering", () => {
   it("lists every check question with a Remove button per row", () => {
     render(

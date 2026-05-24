@@ -30,3 +30,13 @@ export async function PUT(req: Request, { params }: Ctx) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 }
+
+export async function DELETE(_req: Request, { params }: Ctx) {
+  const { id } = await params;
+  const store = getDefaultStore();
+  const removed = store.delete(id);
+  if (!removed) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+  return NextResponse.json({ ok: true });
+}

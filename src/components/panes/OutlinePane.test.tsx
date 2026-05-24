@@ -20,6 +20,22 @@ function s(
   };
 }
 
+describe("OutlinePane — description", () => {
+  it("shows a one-line explainer under the heading", () => {
+    render(
+      <OutlinePane
+        outline={[]}
+        outlineFrozen={false}
+        onOutlineChange={vi.fn()}
+        onFrozenChange={vi.fn()}
+      />
+    );
+    expect(
+      screen.getByTestId("outline-pane-description")
+    ).toHaveTextContent(/section structure/i);
+  });
+});
+
 describe("OutlinePane — rendering", () => {
   it("lists every section with heading, description, and Required/Optional badge", () => {
     const onOutlineChange = vi.fn();

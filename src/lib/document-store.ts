@@ -13,6 +13,8 @@ export interface DocumentStore {
   get(id: string): Document | null;
   list(): DocumentSummary[];
   update(id: string, mutate: (doc: Document) => Document): Document;
+  // Returns true if a row was deleted, false if the id did not exist. Idempotent.
+  delete(id: string): boolean;
 }
 
 interface StoreOptions {
@@ -48,6 +50,7 @@ export function createDocumentStore(options: StoreOptions): DocumentStore {
   const updateStmt = db.prepare(
     "UPDATE documents SET data = ?, updated_at = ? WHERE id = ?"
   );
+  const deleteStmt = db.prepare("DELETE FROM documents WHERE id = ?");
 
   return {
     create(opts) {
@@ -95,6 +98,11 @@ export function createDocumentStore(options: StoreOptions): DocumentStore {
       };
       updateStmt.run(JSON.stringify(next), next.updatedAt, id);
       return next;
+    },
+
+    delete(id) {
+      const info = deleteStmt.run(id);
+      return info.changes > 0;
     },
   };
 }

@@ -39,6 +39,13 @@ export function SpecPane({
           <CollapseButton label="Spec" onCollapse={onToggleCollapse} />
         )}
       </div>
+      <p
+        data-testid="spec-pane-description"
+        className="-mt-2 text-xs text-neutral-500"
+      >
+        What the document is about — goal, tone, audience, and content the
+        draft must include or avoid.
+      </p>
 
       <Field label="Goal" htmlFor="spec-goal">
         <textarea

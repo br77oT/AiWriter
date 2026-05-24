@@ -67,6 +67,15 @@ describe("DocumentStore", () => {
     expect(store.list()).toEqual([]);
   });
 
+  it("deletes a document and reports whether it existed", () => {
+    const a = store.create();
+    expect(store.delete(a.id)).toBe(true);
+    expect(store.get(a.id)).toBeNull();
+    // Idempotent: deleting again is a no-op that reports false.
+    expect(store.delete(a.id)).toBe(false);
+    expect(store.delete("never-existed")).toBe(false);
+  });
+
   it("round-trips structured fields through update", () => {
     const created = store.create();
     const updated = store.update(created.id, (doc) => ({

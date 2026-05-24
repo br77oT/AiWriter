@@ -72,7 +72,7 @@ export function ValidationRail({
       }
       aria-labelledby="validation-rail-heading"
     >
-      <div className="mb-3 flex items-baseline justify-between">
+      <div className="flex items-baseline justify-between">
         <h2
           id="validation-rail-heading"
           className="text-sm font-semibold uppercase tracking-wide text-neutral-600"
@@ -81,6 +81,13 @@ export function ValidationRail({
         </h2>
         {report && <CoverageBadge score={report.coverageScore} />}
       </div>
+      <p
+        data-testid="validation-rail-description"
+        className="mb-3 text-xs text-neutral-500"
+      >
+        How well the current draft meets the spec — each section&apos;s
+        structural status plus answers to your checks.
+      </p>
 
       {status === "running" && (
         <p className="text-neutral-500" data-testid="validation-status">

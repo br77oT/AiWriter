@@ -54,6 +54,21 @@ const reportAllGreen: ValidationReport = {
   },
 };
 
+describe("ValidationRail — description", () => {
+  it("shows a one-line explainer under the heading", () => {
+    render(
+      <ValidationRail
+        document={makeDoc()}
+        report={null}
+        status="idle"
+      />
+    );
+    expect(
+      screen.getByTestId("validation-rail-description")
+    ).toHaveTextContent(/how well the current draft meets the spec/i);
+  });
+});
+
 describe("ValidationRail — autofix footer (slice 008)", () => {
   it("renders both autofix buttons when a report is present and onAutofix is wired", () => {
     render(
