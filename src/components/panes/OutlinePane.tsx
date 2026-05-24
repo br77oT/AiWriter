@@ -198,26 +198,6 @@ export function OutlinePane({
                   />
                   Required
                 </label>
-                <span className="ml-auto flex items-center gap-1">
-                  <button
-                    type="button"
-                    aria-label={`Move section ${section.heading || idx + 1} up`}
-                    disabled={lockEdits || idx === 0}
-                    onClick={() => handleMove(idx, idx - 1)}
-                    className="rounded border border-neutral-300 bg-white px-1.5 py-0.5 text-xs hover:bg-neutral-100 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-400"
-                  >
-                    ↑
-                  </button>
-                  <button
-                    type="button"
-                    aria-label={`Move section ${section.heading || idx + 1} down`}
-                    disabled={lockEdits || idx === outline.length - 1}
-                    onClick={() => handleMove(idx, idx + 1)}
-                    className="rounded border border-neutral-300 bg-white px-1.5 py-0.5 text-xs hover:bg-neutral-100 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-400"
-                  >
-                    ↓
-                  </button>
-                </span>
               </div>
 
               <div className="mt-2 flex items-center gap-1 text-xs text-neutral-600">
@@ -242,6 +222,26 @@ export function OutlinePane({
                     <option value="numbered">Numbered</option>
                   </select>
                 </label>
+                <span className="ml-auto flex items-center gap-1">
+                  <button
+                    type="button"
+                    aria-label={`Move section ${section.heading || idx + 1} up`}
+                    disabled={lockEdits || idx === 0}
+                    onClick={() => handleMove(idx, idx - 1)}
+                    className="rounded border border-neutral-300 bg-white px-1.5 py-0.5 text-xs hover:bg-neutral-100 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-400"
+                  >
+                    ↑
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={`Move section ${section.heading || idx + 1} down`}
+                    disabled={lockEdits || idx === outline.length - 1}
+                    onClick={() => handleMove(idx, idx + 1)}
+                    className="rounded border border-neutral-300 bg-white px-1.5 py-0.5 text-xs hover:bg-neutral-100 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-400"
+                  >
+                    ↓
+                  </button>
+                </span>
               </div>
 
               <div className="mt-2 flex justify-end">
