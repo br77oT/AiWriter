@@ -94,29 +94,27 @@ export function OutlinePane({
       className="flex h-full flex-col gap-3 overflow-y-auto border-r border-neutral-200 bg-white p-3"
       aria-labelledby="outline-pane-heading"
     >
-      <div className="flex items-baseline justify-between">
-        <div className="flex items-center gap-2">
-          <h2
-            id="outline-pane-heading"
-            className="text-sm font-semibold uppercase tracking-wide text-neutral-600"
-          >
-            Document Outline
-          </h2>
-          {onToggleCollapse && (
-            <CollapseButton label="Document Outline" onCollapse={onToggleCollapse} />
-          )}
-        </div>
-        <label className="flex items-center gap-1 text-xs text-neutral-600">
-          <input
-            type="checkbox"
-            aria-label="Freeze outline"
-            checked={outlineFrozen}
-            disabled={readOnly}
-            onChange={(e) => onFrozenChange(e.target.checked)}
-          />
-          Freeze
-        </label>
+      <div className="flex items-center gap-2">
+        <h2
+          id="outline-pane-heading"
+          className="text-sm font-semibold uppercase tracking-wide text-neutral-600"
+        >
+          Document Outline
+        </h2>
+        {onToggleCollapse && (
+          <CollapseButton label="Document Outline" onCollapse={onToggleCollapse} />
+        )}
       </div>
+      <label className="-mt-2 flex items-center gap-1 text-xs text-neutral-600">
+        <input
+          type="checkbox"
+          aria-label="Freeze outline"
+          checked={outlineFrozen}
+          disabled={readOnly}
+          onChange={(e) => onFrozenChange(e.target.checked)}
+        />
+        Freeze
+      </label>
       <p
         data-testid="outline-pane-description"
         className="-mt-2 text-xs text-neutral-500"

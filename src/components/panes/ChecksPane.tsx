@@ -51,27 +51,25 @@ export function ChecksPane({
       className="flex h-full flex-col gap-3 overflow-y-auto border-r border-neutral-200 bg-white p-3"
       aria-labelledby="checks-pane-heading"
     >
-      <div className="flex items-baseline justify-between">
-        <div className="flex items-center gap-2">
-          <h2
-            id="checks-pane-heading"
-            className="text-sm font-semibold uppercase tracking-wide text-neutral-600"
-          >
-            Validation Checks
-          </h2>
-          {onToggleCollapse && (
-            <CollapseButton label="Validation Checks" onCollapse={onToggleCollapse} />
-          )}
-        </div>
-        <button
-          type="button"
-          onClick={onLoadTemplate}
-          disabled={readOnly}
-          className="rounded border border-neutral-300 bg-white px-2 py-0.5 text-xs text-neutral-700 hover:bg-neutral-100 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-400"
+      <div className="flex items-center gap-2">
+        <h2
+          id="checks-pane-heading"
+          className="text-sm font-semibold uppercase tracking-wide text-neutral-600"
         >
-          Load template
-        </button>
+          Validation Checks
+        </h2>
+        {onToggleCollapse && (
+          <CollapseButton label="Validation Checks" onCollapse={onToggleCollapse} />
+        )}
       </div>
+      <button
+        type="button"
+        onClick={onLoadTemplate}
+        disabled={readOnly}
+        className="-mt-2 self-start rounded border border-neutral-300 bg-white px-2 py-0.5 text-xs text-neutral-700 hover:bg-neutral-100 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-400"
+      >
+        Load template
+      </button>
       <p
         data-testid="checks-pane-description"
         className="-mt-2 text-xs text-neutral-500"
