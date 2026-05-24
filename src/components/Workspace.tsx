@@ -782,15 +782,13 @@ export function Workspace({
               // Collapsed panes shrink to a thin strip; the freed width flows
               // to the Draft column (1fr), which is the actual writing surface.
               // When the Assembled pane is expanded it takes 1fr too, so Draft
-              // and Assembled share width 50/50 side-by-side. Stats is a
-              // narrower fixed width when expanded — it's a glance-able card.
+              // and Assembled share width 50/50 side-by-side.
               gridTemplateColumns: [
                 collapsedPanes.has("spec") ? "2.5rem" : "260px",
                 collapsedPanes.has("outline") ? "2.5rem" : "260px",
                 collapsedPanes.has("checks") ? "2.5rem" : "260px",
                 "1fr",
                 collapsedPanes.has("assembled") ? "2.5rem" : "1fr",
-                collapsedPanes.has("stats") ? "2.5rem" : "240px",
               ].join(" "),
             }}
           >
@@ -799,9 +797,20 @@ export function Workspace({
             {checksPane}
             {draftPane}
             {assembledDraftPane}
-            {statisticsPane}
           </main>
           {validationRail}
+          {/* Statistics sits to the right of the Validation rail. Fixed
+              width when expanded; thin strip when collapsed. The left
+              border separates it from the rail (the rail itself only
+              has a left border). */}
+          <div
+            className={
+              "shrink-0 border-l border-neutral-200 " +
+              (collapsedPanes.has("stats") ? "w-10" : "w-60")
+            }
+          >
+            {statisticsPane}
+          </div>
         </div>
       )}
       {rewriteTarget && (
