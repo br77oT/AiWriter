@@ -1,6 +1,14 @@
 .old/
+.trash/
 startClaude.sh
+startRalph.sh
 .idea/
+
+# Runtime artifacts written by scripts/start*.sh
+.aiwriter.log
+.aiwriter*.log
+.aiwriter.pid
+.aiwriter*.pid
 
 # dependencies
 /node_modules

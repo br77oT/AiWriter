@@ -73,6 +73,43 @@ describe("POST /api/generate", () => {
     expect(persisted.draftSections.timeline).toBe("Drafted: Timeline");
   });
 
+  it("returns a promptLog with the exact prompt sent per section", async () => {
+    const store = getDefaultStore();
+    const created = store.create();
+    store.update(created.id, (doc) => ({
+      ...doc,
+      outline: [
+        { id: "summary", heading: "Summary", description: "", required: true },
+        { id: "timeline", heading: "Timeline", description: "", required: true },
+      ],
+    }));
+
+    const res = await generatePOST(
+      new Request("http://t/", {
+        method: "POST",
+        body: JSON.stringify({ documentId: created.id }),
+      })
+    );
+
+    const data = (await res.json()) as {
+      promptLog: {
+        kind: string;
+        exchanges: Array<{
+          systemPrompt: string;
+          messages: Array<{ role: string; content: string }>;
+          response: string;
+        }>;
+      };
+    };
+    expect(data.promptLog.kind).toBe("Generate");
+    // One exchange per unlocked outline section.
+    expect(data.promptLog.exchanges).toHaveLength(2);
+    const first = data.promptLog.exchanges[0]!;
+    expect(first.systemPrompt).toContain("structured document drafter");
+    expect(first.messages[0]!.content).toContain('Write the section "Summary"');
+    expect(first.response).toBe("Drafted: Summary");
+  });
+
   it("does not modify spec or outline (PRD user story 40)", async () => {
     const store = getDefaultStore();
     const created = store.create();
