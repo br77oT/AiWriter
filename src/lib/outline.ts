@@ -17,6 +17,7 @@ export interface NewSection {
   description?: string;
   required?: boolean;
   parentId?: string;
+  format?: OutlineSection["format"];
 }
 
 export function addSection(
@@ -31,6 +32,7 @@ export function addSection(
     description: partial.description ?? "",
     required: partial.required ?? true,
     ...(partial.parentId !== undefined ? { parentId: partial.parentId } : {}),
+    ...(partial.format !== undefined ? { format: partial.format } : {}),
   };
   return [...outline, next];
 }
@@ -48,10 +50,10 @@ export function removeSection(
 
 // Patch is intentionally narrow — id/parentId are not user-editable from
 // this surface. When frozen, `heading` is dropped from the patch (renaming
-// is part of the freeze invariant); description and required-flag remain
-// editable since they don't change the section list itself.
+// is part of the freeze invariant); description, required-flag and format
+// remain editable since they don't change the section list itself.
 export type SectionPatch = Partial<
-  Pick<OutlineSection, "heading" | "description" | "required">
+  Pick<OutlineSection, "heading" | "description" | "required" | "format">
 >;
 
 export function updateSection(
@@ -63,7 +65,11 @@ export function updateSection(
   const idx = outline.findIndex((s) => s.id === id);
   if (idx === -1) return outline;
   const effective: SectionPatch = options.frozen
-    ? { description: patch.description, required: patch.required }
+    ? {
+        description: patch.description,
+        required: patch.required,
+        format: patch.format,
+      }
     : patch;
   // Strip undefined keys so {} merges cleanly without overwriting fields.
   const cleaned: SectionPatch = {};
@@ -71,6 +77,7 @@ export function updateSection(
   if (effective.description !== undefined)
     cleaned.description = effective.description;
   if (effective.required !== undefined) cleaned.required = effective.required;
+  if (effective.format !== undefined) cleaned.format = effective.format;
   if (Object.keys(cleaned).length === 0) return outline;
   const updated: OutlineSection = { ...outline[idx], ...cleaned };
   return [...outline.slice(0, idx), updated, ...outline.slice(idx + 1)];

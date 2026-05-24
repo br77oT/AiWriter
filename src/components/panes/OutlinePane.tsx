@@ -55,7 +55,12 @@ export function OutlinePane({
 
   function handlePatch(
     id: string,
-    patch: { heading?: string; description?: string; required?: boolean }
+    patch: {
+      heading?: string;
+      description?: string;
+      required?: boolean;
+      format?: OutlineSection["format"];
+    }
   ) {
     onOutlineChange(
       updateSection(outline, id, patch, { frozen: outlineFrozen })
@@ -180,7 +185,7 @@ export function OutlinePane({
                 </span>
               </div>
 
-              <div className="mt-2 flex items-center gap-2 text-xs text-neutral-600">
+              <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-neutral-600">
                 <label className="flex items-center gap-1">
                   <input
                     type="checkbox"
@@ -192,6 +197,27 @@ export function OutlinePane({
                     }
                   />
                   Required
+                </label>
+                <label className="flex items-center gap-1">
+                  Format
+                  <select
+                    aria-label={`Format for ${section.heading || `section ${idx + 1}`}`}
+                    value={section.format ?? "prose"}
+                    disabled={readOnly}
+                    onChange={(e) =>
+                      handlePatch(section.id, {
+                        format: e.target.value as
+                          | "prose"
+                          | "bullets"
+                          | "numbered",
+                      })
+                    }
+                    className="rounded border border-neutral-300 bg-white px-1 py-0.5 text-xs disabled:bg-neutral-100 disabled:text-neutral-500"
+                  >
+                    <option value="prose">Prose</option>
+                    <option value="bullets">Bullets</option>
+                    <option value="numbered">Numbered</option>
+                  </select>
                 </label>
                 <span className="ml-auto flex items-center gap-1">
                   <button

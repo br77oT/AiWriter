@@ -391,3 +391,36 @@ describe("OutlinePane — collapse", () => {
     expect(onToggle).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("OutlinePane — per-section format dropdown", () => {
+  it("defaults to Prose when no format is set", () => {
+    render(
+      <OutlinePane
+        outline={[s("a", { heading: "Timeline" })]}
+        outlineFrozen={false}
+        onOutlineChange={vi.fn()}
+        onFrozenChange={vi.fn()}
+      />
+    );
+    const select = screen.getByLabelText(/Format for Timeline/i) as HTMLSelectElement;
+    expect(select.value).toBe("prose");
+  });
+
+  it("emits the updated section with the new format", () => {
+    const onChange = vi.fn();
+    render(
+      <OutlinePane
+        outline={[s("a", { heading: "Timeline" })]}
+        outlineFrozen={false}
+        onOutlineChange={onChange}
+        onFrozenChange={vi.fn()}
+      />
+    );
+    fireEvent.change(screen.getByLabelText(/Format for Timeline/i), {
+      target: { value: "bullets" },
+    });
+    expect(onChange).toHaveBeenCalled();
+    const next = onChange.mock.calls[0]![0] as OutlineSection[];
+    expect(next[0]!.format).toBe("bullets");
+  });
+});

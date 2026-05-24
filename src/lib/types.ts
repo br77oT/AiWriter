@@ -10,12 +10,20 @@ export interface Spec {
   mustAvoid: string[];
 }
 
+// How the model should format the section's prose. Sections without a
+// `format` (or with `"prose"`) get the default freeform paragraph treatment;
+// `"bullets"` asks for `- item` rows and `"numbered"` asks for `1.`/`2.`/…
+// rows. The Generation engine appends an explicit instruction to its prompt
+// when this is set, so the model doesn't have to infer from the heading.
+export type SectionFormat = "prose" | "bullets" | "numbered";
+
 export interface OutlineSection {
   id: string;
   heading: string;
   description: string;
   required: boolean;
   parentId?: string;
+  format?: SectionFormat;
 }
 
 export interface Check {

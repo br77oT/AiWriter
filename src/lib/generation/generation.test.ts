@@ -67,6 +67,46 @@ describe("Generation Engine — full draft mode", () => {
     expect(result.actions).toMatch(/Follow-up Actions/);
   });
 
+  it("emits a FORMAT instruction for bullets / numbered sections only", async () => {
+    const captured: LlmRequest[] = [];
+    const provider = createScriptedProvider((req) => {
+      captured.push(req);
+      return "ok";
+    });
+    const outlineWithFormat: OutlineSection[] = [
+      {
+        id: "summary",
+        heading: "Summary",
+        description: "",
+        required: true,
+        // No format → defaults to prose, no FORMAT line.
+      },
+      {
+        id: "timeline",
+        heading: "Timeline",
+        description: "",
+        required: true,
+        format: "bullets",
+      },
+      {
+        id: "actions",
+        heading: "Actions",
+        description: "",
+        required: true,
+        format: "numbered",
+      },
+    ];
+    await generate(spec, outlineWithFormat, checks, { provider });
+
+    const promptFor = (heading: string) =>
+      captured.find((r) => targetHeading(r) === heading)
+        ?.messages.find((m) => m.role === "user")?.content ?? "";
+
+    expect(promptFor("Summary")).not.toMatch(/FORMAT:/);
+    expect(promptFor("Timeline")).toMatch(/FORMAT: Output as a bulleted list/);
+    expect(promptFor("Actions")).toMatch(/FORMAT: Output as a numbered list/);
+  });
+
   it("returns prose only — no Markdown heading prefix", async () => {
     const provider = createScriptedProvider(
       () => "Plain prose without any heading."

@@ -215,8 +215,30 @@ function renderUserPrompt(
   parts.push(
     "Output the prose for this section only — no heading, no surrounding sections."
   );
+  const formatLine = renderFormatInstruction(target.format);
+  if (formatLine) parts.push(formatLine);
 
   return parts.join("\n");
+}
+
+// Translate the optional structured `format` field on an OutlineSection into
+// a precise instruction the drafter must follow. Defaults to no extra line
+// (the system prompt's "prose unless intrinsically a list" carveout takes
+// over). When set, this overrides that carveout with a hard requirement.
+function renderFormatInstruction(format?: OutlineSection["format"]): string {
+  if (!format || format === "prose") return "";
+  if (format === "bullets") {
+    return (
+      "FORMAT: Output as a bulleted list. One item per line, each line " +
+      'prefixed with "- ". No introductory paragraph; no trailing summary.'
+    );
+  }
+  // numbered
+  return (
+    "FORMAT: Output as a numbered list. One item per line, each line " +
+    'prefixed with the next ordinal ("1.", "2.", …). No introductory ' +
+    "paragraph; no trailing summary."
+  );
 }
 
 function renderList(items: string[]): string {
@@ -339,6 +361,8 @@ function renderSectionRewriteUserPrompt(
   parts.push(
     "Output the prose for this section only — no heading, no surrounding sections."
   );
+  const formatLine = renderFormatInstruction(target.format);
+  if (formatLine) parts.push(formatLine);
 
   return parts.join("\n");
 }
