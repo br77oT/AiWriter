@@ -217,15 +217,6 @@ export function OutlinePane({
                   >
                     ↓
                   </button>
-                  <button
-                    type="button"
-                    aria-label={`Remove section ${section.heading || idx + 1}`}
-                    disabled={lockEdits}
-                    onClick={() => handleRemove(section.id)}
-                    className="rounded border border-neutral-300 bg-white px-1.5 py-0.5 text-xs text-neutral-600 hover:text-red-600 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-400"
-                  >
-                    Remove
-                  </button>
                 </span>
               </div>
 
@@ -251,6 +242,18 @@ export function OutlinePane({
                     <option value="numbered">Numbered</option>
                   </select>
                 </label>
+              </div>
+
+              <div className="mt-2 flex justify-end">
+                <button
+                  type="button"
+                  aria-label={`Remove section ${section.heading || idx + 1}`}
+                  disabled={lockEdits}
+                  onClick={() => handleRemove(section.id)}
+                  className="rounded border border-red-300 bg-white px-2 py-0.5 text-xs text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-400 disabled:border-neutral-300"
+                >
+                  Remove
+                </button>
               </div>
             </li>
           ))}
