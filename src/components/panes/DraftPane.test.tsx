@@ -339,7 +339,7 @@ describe("DraftPane — Generate buttons", () => {
     expect(screen.getByTestId("draft-generate-bottom")).toBeDisabled();
   });
 
-  it("shows the explainer + a down-arrow on both Generate buttons", () => {
+  it("shows the explainer + a right-arrow on both Generate buttons", () => {
     render(
       <DraftPane
         document={makeDoc()}
@@ -351,15 +351,15 @@ describe("DraftPane — Generate buttons", () => {
         canGenerate
       />
     );
-    // Explainer copy lives left of the top button only.
+    // Explainer copy renders above the top button.
     expect(screen.getByTestId("draft-generate-explainer")).toHaveTextContent(
       /numbered prompts below will be combined into a final draft/i
     );
-    // Both buttons point downward — the click produces a draft in the
-    // Assembled draft section below.
-    expect(screen.getByTestId("draft-generate-top")).toHaveTextContent("↓");
+    // Both buttons point right — the click sends the prompts to the
+    // Assembled draft pane sitting to the right of Draft.
+    expect(screen.getByTestId("draft-generate-top")).toHaveTextContent("→");
     expect(screen.getByTestId("draft-generate-bottom")).toHaveTextContent(
-      "↓"
+      "→"
     );
   });
 

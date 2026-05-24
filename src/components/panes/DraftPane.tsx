@@ -187,7 +187,7 @@ function GenerateDraftButton({
     <div
       className={
         isTop
-          ? "mb-3 flex items-center justify-end gap-3"
+          ? "mb-3 flex flex-col items-start gap-2"
           : "mt-4 flex justify-end border-t border-neutral-200 pt-3"
       }
     >
@@ -212,11 +212,11 @@ function GenerateDraftButton({
         className="inline-flex items-center gap-1 rounded border border-neutral-300 bg-white px-3 py-1 text-sm hover:bg-neutral-100 disabled:bg-neutral-100 disabled:text-neutral-400"
       >
         <span>{generating ? "Generating…" : "Generate Draft"}</span>
-        {/* Down arrow on both buttons — the click produces a draft below
-            (the Assembled draft section). aria-hidden so screen readers
-            hear only "Generate Draft". */}
+        {/* Right arrow on both buttons — the click sends the prompts to
+            the Assembled draft pane on the right. aria-hidden so screen
+            readers hear only "Generate Draft". */}
         <span aria-hidden="true" className="text-neutral-500">
-          ↓
+          →
         </span>
       </button>
     </div>
