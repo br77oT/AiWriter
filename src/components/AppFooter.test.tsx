@@ -20,17 +20,26 @@ describe("AppFooter", () => {
     ).toBeInTheDocument();
   });
 
-  it("× hides the footer and persists the choice to localStorage", () => {
+  it("× hides the upper footer but keeps the copyright bar visible", () => {
     render(<AppFooter />);
     fireEvent.click(screen.getByRole("button", { name: /hide footer/i }));
     expect(screen.queryByTestId("app-footer")).toBeNull();
+    expect(screen.getByTestId("app-copyright-bar")).toBeInTheDocument();
     expect(window.localStorage.getItem("aiwriter:footerHidden")).toBe("1");
   });
 
-  it("stays hidden on subsequent renders when localStorage says so", () => {
+  it("upper footer stays hidden when localStorage says so; copyright remains", () => {
     window.localStorage.setItem("aiwriter:footerHidden", "1");
     render(<AppFooter />);
     expect(screen.queryByTestId("app-footer")).toBeNull();
+    expect(screen.getByTestId("app-copyright-bar")).toBeInTheDocument();
+  });
+
+  it("renders an always-visible © AiWriter℠ copyright line", () => {
+    render(<AppFooter />);
+    const copy = screen.getByTestId("app-copyright");
+    expect(copy).toHaveTextContent(/© AiWriter/);
+    expect(copy).toHaveTextContent("℠");
   });
 
   it("About button opens a modal with the about copy; Close dismisses it", () => {
