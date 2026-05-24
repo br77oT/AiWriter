@@ -20,7 +20,7 @@ export function SpecPane({
   onToggleCollapse,
 }: SpecPaneProps) {
   if (collapsed && onToggleCollapse) {
-    return <CollapsedStrip label="Spec" onExpand={onToggleCollapse} />;
+    return <CollapsedStrip label="Tone and Purpose" onExpand={onToggleCollapse} />;
   }
 
   return (
@@ -33,10 +33,10 @@ export function SpecPane({
           id="spec-pane-heading"
           className="text-sm font-semibold uppercase tracking-wide text-neutral-600"
         >
-          Spec
+          Tone and Purpose
         </h2>
         {onToggleCollapse && (
-          <CollapseButton label="Spec" onCollapse={onToggleCollapse} />
+          <CollapseButton label="Tone and Purpose" onCollapse={onToggleCollapse} />
         )}
       </div>
       <p

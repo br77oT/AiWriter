@@ -201,7 +201,7 @@ describe("SpecPane — collapse", () => {
   it("shows no collapse control when onToggleCollapse is omitted", () => {
     render(<SpecPane spec={spec()} onSpecChange={vi.fn()} />);
     expect(
-      screen.queryByLabelText(/Collapse Spec pane/)
+      screen.queryByLabelText(/Collapse Tone and Purpose pane/)
     ).not.toBeInTheDocument();
   });
 
@@ -210,7 +210,7 @@ describe("SpecPane — collapse", () => {
     render(
       <SpecPane spec={spec()} onSpecChange={vi.fn()} onToggleCollapse={onToggle} />
     );
-    fireEvent.click(screen.getByLabelText(/Collapse Spec pane/));
+    fireEvent.click(screen.getByLabelText(/Collapse Tone and Purpose pane/));
     expect(onToggle).toHaveBeenCalledTimes(1);
   });
 
@@ -225,7 +225,7 @@ describe("SpecPane — collapse", () => {
       />
     );
     expect(screen.queryByLabelText("Goal")).not.toBeInTheDocument();
-    fireEvent.click(screen.getByLabelText(/Expand Spec pane/));
+    fireEvent.click(screen.getByLabelText(/Expand Tone and Purpose pane/));
     expect(onToggle).toHaveBeenCalledTimes(1);
   });
 

@@ -23,9 +23,9 @@ describe("MobileWorkspaceLayout", () => {
   it("renders all seven tabs with clear text labels", () => {
     renderLayout();
     const tablist = screen.getByRole("tablist", { name: /workspace panes/i });
-    expect(within(tablist).getByRole("tab", { name: /^spec$/i })).toBeInTheDocument();
-    expect(within(tablist).getByRole("tab", { name: /^outline$/i })).toBeInTheDocument();
-    expect(within(tablist).getByRole("tab", { name: /^checks$/i })).toBeInTheDocument();
+    expect(within(tablist).getByRole("tab", { name: /tone and purpose/i })).toBeInTheDocument();
+    expect(within(tablist).getByRole("tab", { name: /document outline/i })).toBeInTheDocument();
+    expect(within(tablist).getByRole("tab", { name: /validation checks/i })).toBeInTheDocument();
     expect(within(tablist).getByRole("tab", { name: /^draft$/i })).toBeInTheDocument();
     expect(within(tablist).getByRole("tab", { name: /^assembled$/i })).toBeInTheDocument();
     expect(within(tablist).getByRole("tab", { name: /^stats$/i })).toBeInTheDocument();
@@ -45,10 +45,10 @@ describe("MobileWorkspaceLayout", () => {
     ).toBeInTheDocument();
   });
 
-  it("defaults to the Spec tab; only its pane is in the active-pane area", () => {
+  it("defaults to the Tone and Purpose tab; only its pane is in the active-pane area", () => {
     renderLayout();
     expect(
-      screen.getByRole("tab", { name: /^spec$/i })
+      screen.getByRole("tab", { name: /tone and purpose/i })
     ).toHaveAttribute("aria-selected", "true");
     expect(screen.getByTestId("mobile-active-pane-spec")).toBeInTheDocument();
     expect(
@@ -60,9 +60,9 @@ describe("MobileWorkspaceLayout", () => {
 
   it("clicking a tab switches the visible pane", () => {
     renderLayout();
-    fireEvent.click(screen.getByRole("tab", { name: /^outline$/i }));
+    fireEvent.click(screen.getByRole("tab", { name: /document outline/i }));
     expect(
-      screen.getByRole("tab", { name: /^outline$/i })
+      screen.getByRole("tab", { name: /document outline/i })
     ).toHaveAttribute("aria-selected", "true");
     expect(screen.getByTestId("mobile-active-pane-outline")).toBeInTheDocument();
     expect(

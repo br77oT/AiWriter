@@ -23,9 +23,9 @@ interface MobileWorkspaceLayoutProps {
 }
 
 const TABS: Array<{ id: MobilePaneId; label: string }> = [
-  { id: "spec", label: "Spec" },
-  { id: "outline", label: "Outline" },
-  { id: "checks", label: "Checks" },
+  { id: "spec", label: "Tone and Purpose" },
+  { id: "outline", label: "Document Outline" },
+  { id: "checks", label: "Validation Checks" },
   { id: "draft", label: "Draft" },
   { id: "assembled", label: "Assembled" },
   { id: "stats", label: "Stats" },

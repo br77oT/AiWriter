@@ -355,7 +355,7 @@ describe("OutlinePane — collapse", () => {
       />
     );
     expect(
-      screen.queryByLabelText(/Collapse Outline pane/)
+      screen.queryByLabelText(/Collapse Document Outline pane/)
     ).not.toBeInTheDocument();
   });
 
@@ -370,7 +370,7 @@ describe("OutlinePane — collapse", () => {
         onToggleCollapse={onToggle}
       />
     );
-    fireEvent.click(screen.getByLabelText(/Collapse Outline pane/));
+    fireEvent.click(screen.getByLabelText(/Collapse Document Outline pane/));
     expect(onToggle).toHaveBeenCalledTimes(1);
   });
 
@@ -387,7 +387,7 @@ describe("OutlinePane — collapse", () => {
       />
     );
     expect(screen.queryByDisplayValue("Intro")).not.toBeInTheDocument();
-    fireEvent.click(screen.getByLabelText(/Expand Outline pane/));
+    fireEvent.click(screen.getByLabelText(/Expand Document Outline pane/));
     expect(onToggle).toHaveBeenCalledTimes(1);
   });
 });

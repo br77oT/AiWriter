@@ -341,7 +341,7 @@ describe("ChecksPane — collapse", () => {
       />
     );
     expect(
-      screen.queryByLabelText(/Collapse Checks pane/)
+      screen.queryByLabelText(/Collapse Validation Checks pane/)
     ).not.toBeInTheDocument();
   });
 
@@ -357,7 +357,7 @@ describe("ChecksPane — collapse", () => {
         onToggleCollapse={onToggle}
       />
     );
-    fireEvent.click(screen.getByLabelText(/Collapse Checks pane/));
+    fireEvent.click(screen.getByLabelText(/Collapse Validation Checks pane/));
     expect(onToggle).toHaveBeenCalledTimes(1);
   });
 
@@ -377,7 +377,7 @@ describe("ChecksPane — collapse", () => {
     expect(
       screen.queryByDisplayValue("What happened?")
     ).not.toBeInTheDocument();
-    fireEvent.click(screen.getByLabelText(/Expand Checks pane/));
+    fireEvent.click(screen.getByLabelText(/Expand Validation Checks pane/));
     expect(onToggle).toHaveBeenCalledTimes(1);
   });
 });

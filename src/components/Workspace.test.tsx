@@ -71,19 +71,19 @@ describe("Workspace shell", () => {
     render(<Workspace document={doc} />);
 
     expect(
-      screen.getByRole("heading", { name: /spec/i })
+      screen.getByRole("heading", { name: /tone and purpose/i })
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: /outline/i })
+      screen.getByRole("heading", { name: /document outline/i })
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: /checks/i })
+      screen.getByRole("heading", { name: /validation checks/i })
     ).toBeInTheDocument();
     expect(
       screen.getByRole("heading", { name: /^draft$/i })
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: /validation/i })
+      screen.getByRole("heading", { name: /^validation$/i })
     ).toBeInTheDocument();
   });
 
@@ -93,24 +93,30 @@ describe("Workspace shell", () => {
     render(<Workspace document={doc} />);
 
     // The three side panes show only their collapsed strips...
-    expect(screen.getByLabelText("Spec pane (collapsed)")).toBeInTheDocument();
     expect(
-      screen.getByLabelText("Outline pane (collapsed)")
+      screen.getByLabelText("Tone and Purpose pane (collapsed)")
     ).toBeInTheDocument();
     expect(
-      screen.getByLabelText("Checks pane (collapsed)")
+      screen.getByLabelText("Document Outline pane (collapsed)")
+    ).toBeInTheDocument();
+    expect(
+      screen.getByLabelText("Validation Checks pane (collapsed)")
     ).toBeInTheDocument();
     // ...so their editing headings are not rendered.
-    expect(screen.queryByRole("heading", { name: /spec/i })).toBeNull();
+    expect(
+      screen.queryByRole("heading", { name: /tone and purpose/i })
+    ).toBeNull();
     // Draft stays open — it's the focus.
     expect(
       screen.getByRole("heading", { name: /^draft$/i })
     ).toBeInTheDocument();
 
     // Expanding one pane reveals its editing UI.
-    fireEvent.click(screen.getByLabelText("Expand Spec pane"));
+    fireEvent.click(
+      screen.getByLabelText("Expand Tone and Purpose pane")
+    );
     expect(
-      screen.getByRole("heading", { name: /spec/i })
+      screen.getByRole("heading", { name: /tone and purpose/i })
     ).toBeInTheDocument();
   });
 
@@ -1963,9 +1969,9 @@ describe("Workspace responsive layout (slice 013)", () => {
     const doc = newDocument("doc-desktop", "2026-04-30T00:00:00.000Z");
     render(<Workspace document={doc} />);
 
-    expect(screen.getByRole("heading", { name: /^spec$/i })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: /^outline$/i })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: /^checks$/i })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /tone and purpose/i })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /document outline/i })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /validation checks/i })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /^draft$/i })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /^validation$/i })).toBeInTheDocument();
 
@@ -1983,18 +1989,18 @@ describe("Workspace responsive layout (slice 013)", () => {
 
     // Tab bar with five tabs.
     const tablist = screen.getByRole("tablist", { name: /workspace panes/i });
-    expect(within(tablist).getByRole("tab", { name: /^spec$/i })).toBeInTheDocument();
-    expect(within(tablist).getByRole("tab", { name: /^outline$/i })).toBeInTheDocument();
-    expect(within(tablist).getByRole("tab", { name: /^checks$/i })).toBeInTheDocument();
+    expect(within(tablist).getByRole("tab", { name: /tone and purpose/i })).toBeInTheDocument();
+    expect(within(tablist).getByRole("tab", { name: /document outline/i })).toBeInTheDocument();
+    expect(within(tablist).getByRole("tab", { name: /validation checks/i })).toBeInTheDocument();
     expect(within(tablist).getByRole("tab", { name: /^draft$/i })).toBeInTheDocument();
     expect(within(tablist).getByRole("tab", { name: /^assembled$/i })).toBeInTheDocument();
     expect(within(tablist).getByRole("tab", { name: /^stats$/i })).toBeInTheDocument();
     expect(within(tablist).getByRole("tab", { name: /^validation$/i })).toBeInTheDocument();
 
-    // Default tab is Spec — only the Spec pane heading is visible.
-    expect(screen.getByRole("heading", { name: /^spec$/i })).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: /^outline$/i })).toBeNull();
-    expect(screen.queryByRole("heading", { name: /^checks$/i })).toBeNull();
+    // Default tab is Tone and Purpose — only its heading is visible.
+    expect(screen.getByRole("heading", { name: /tone and purpose/i })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /document outline/i })).toBeNull();
+    expect(screen.queryByRole("heading", { name: /validation checks/i })).toBeNull();
     expect(screen.queryByRole("heading", { name: /^draft$/i })).toBeNull();
     expect(screen.queryByRole("heading", { name: /^validation$/i })).toBeNull();
 
@@ -2015,13 +2021,13 @@ describe("Workspace responsive layout (slice 013)", () => {
     };
     render(<Workspace document={doc} />);
 
-    fireEvent.click(screen.getByRole("tab", { name: /^outline$/i }));
-    expect(screen.getByRole("heading", { name: /^outline$/i })).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: /^spec$/i })).toBeNull();
+    fireEvent.click(screen.getByRole("tab", { name: /document outline/i }));
+    expect(screen.getByRole("heading", { name: /document outline/i })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /tone and purpose/i })).toBeNull();
 
     fireEvent.click(screen.getByRole("tab", { name: /^draft$/i }));
     expect(screen.getByRole("heading", { name: /^draft$/i })).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: /^outline$/i })).toBeNull();
+    expect(screen.queryByRole("heading", { name: /document outline/i })).toBeNull();
   });
 
   it("at a mobile viewport, the Menu button opens a drawer with the documents/templates list", () => {

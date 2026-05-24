@@ -43,7 +43,7 @@ export function ChecksPane({
   }
 
   if (collapsed && onToggleCollapse) {
-    return <CollapsedStrip label="Checks" onExpand={onToggleCollapse} />;
+    return <CollapsedStrip label="Validation Checks" onExpand={onToggleCollapse} />;
   }
 
   return (
@@ -57,10 +57,10 @@ export function ChecksPane({
             id="checks-pane-heading"
             className="text-sm font-semibold uppercase tracking-wide text-neutral-600"
           >
-            Checks
+            Validation Checks
           </h2>
           {onToggleCollapse && (
-            <CollapseButton label="Checks" onCollapse={onToggleCollapse} />
+            <CollapseButton label="Validation Checks" onCollapse={onToggleCollapse} />
           )}
         </div>
         <button

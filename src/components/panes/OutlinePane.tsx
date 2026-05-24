@@ -86,7 +86,7 @@ export function OutlinePane({
   }
 
   if (collapsed && onToggleCollapse) {
-    return <CollapsedStrip label="Outline" onExpand={onToggleCollapse} />;
+    return <CollapsedStrip label="Document Outline" onExpand={onToggleCollapse} />;
   }
 
   return (
@@ -100,10 +100,10 @@ export function OutlinePane({
             id="outline-pane-heading"
             className="text-sm font-semibold uppercase tracking-wide text-neutral-600"
           >
-            Outline
+            Document Outline
           </h2>
           {onToggleCollapse && (
-            <CollapseButton label="Outline" onCollapse={onToggleCollapse} />
+            <CollapseButton label="Document Outline" onCollapse={onToggleCollapse} />
           )}
         </div>
         <label className="flex items-center gap-1 text-xs text-neutral-600">
