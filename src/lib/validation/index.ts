@@ -28,7 +28,32 @@ const THIN_WORD_COUNT = 25;
 
 export interface ValidateOptions {
   provider?: LlmProvider;
+  // Optional progress callback. Fires once per check question with the
+  // wall-clock state of that LLM call — used by /api/validate to stream
+  // per-check progress to the client UI. Structural evaluation runs in
+  // microseconds and emits no events.
+  onProgress?: (event: ValidateProgressEvent) => void;
 }
+
+// One-step progress event. `check-start` fires immediately before the
+// per-question LLM call goes out; `check-done` fires immediately after the
+// evaluator returns (success, JSON-parse failure, or thrown — `result`
+// captures the normalized status either way).
+export type ValidateProgressEvent =
+  | {
+      type: "check-start";
+      index: number; // 0-based
+      total: number;
+      checkId: string;
+      question: string;
+    }
+  | {
+      type: "check-done";
+      index: number;
+      total: number;
+      checkId: string;
+      result: ValidationReport["questions"][number];
+    };
 
 export async function validate(
   draft: Record<string, string>,
@@ -38,7 +63,13 @@ export async function validate(
 ): Promise<ValidationReport> {
   const provider = options.provider ?? getDefaultProvider();
   const structure = evaluateStructure(draft, outline);
-  const questions = await evaluateQuestions(draft, outline, checks, provider);
+  const questions = await evaluateQuestions(
+    draft,
+    outline,
+    checks,
+    provider,
+    options.onProgress
+  );
   const coverageScore = computeCoverageScore(
     structure,
     questions,
@@ -119,27 +150,45 @@ async function evaluateQuestions(
   draft: Record<string, string>,
   outline: OutlineSection[],
   checks: Check[],
-  provider: LlmProvider
+  provider: LlmProvider,
+  onProgress?: (event: ValidateProgressEvent) => void
 ): Promise<ValidationReport["questions"]> {
   if (checks.length === 0) return [];
   const draftText = renderDraftForLlm(draft, outline);
   const results: ValidationReport["questions"] = [];
-  for (const check of checks) {
+  for (let index = 0; index < checks.length; index += 1) {
+    const check = checks[index]!;
+    onProgress?.({
+      type: "check-start",
+      index,
+      total: checks.length,
+      checkId: check.id,
+      question: check.question,
+    });
     const request = buildCheckRequest(draftText, check.question);
+    let result: ValidationReport["questions"][number];
     try {
       const { text } = await provider.complete(request);
       const parsed = JSON.parse(extractJson(text)) as RawCheckResponse;
-      results.push(normalizeCheckResult(check.id, parsed));
+      result = normalizeCheckResult(check.id, parsed);
     } catch {
       // The provider threw, or returned text that isn't JSON. The check was
       // never actually assessed — report `error` rather than disguising an
       // infrastructure failure as a "missing" content gap.
-      results.push({
+      result = {
         checkId: check.id,
         status: "error",
         suggestion: EVALUATOR_ERROR_SUGGESTION,
-      });
+      };
     }
+    results.push(result);
+    onProgress?.({
+      type: "check-done",
+      index,
+      total: checks.length,
+      checkId: check.id,
+      result,
+    });
   }
   return results;
 }

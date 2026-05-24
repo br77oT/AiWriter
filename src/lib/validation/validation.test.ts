@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { validate, evaluateStructure, computeCoverageScore } from "./index";
 import { createScriptedProvider } from "../llm";
 import type { Check, OutlineSection } from "../types";
@@ -363,5 +363,45 @@ describe("validate() end-to-end", () => {
     expect(report.coverageScore.checksTotal).toBe(3);
     expect(report.coverageScore.checksAnswered).toBe(1);
     expect(report.coverageScore.sectionsTotal).toBe(3);
+  });
+});
+
+describe("validate() — onProgress callback", () => {
+  it("fires check-start before each LLM call and check-done after", async () => {
+    const provider = scriptedFromMap({
+      "What happened?": { status: "answered", evidence: "x" },
+      "Who was affected?": { status: "missing", suggestion: "y" },
+    });
+    const checks: Check[] = [
+      { id: "c1", question: "What happened?" },
+      { id: "c2", question: "Who was affected?" },
+    ];
+    const draft = { summary: "Pipe burst at 03:15. ".repeat(10) };
+    const events: Array<{ type: string; checkId: string; index: number }> = [];
+    await validate(draft, outline.slice(0, 1), checks, {
+      provider,
+      onProgress: (event) =>
+        events.push({
+          type: event.type,
+          checkId: event.checkId,
+          index: event.index,
+        }),
+    });
+    // start → done, start → done, in order, with index matching the input.
+    expect(events).toEqual([
+      { type: "check-start", checkId: "c1", index: 0 },
+      { type: "check-done", checkId: "c1", index: 0 },
+      { type: "check-start", checkId: "c2", index: 1 },
+      { type: "check-done", checkId: "c2", index: 1 },
+    ]);
+  });
+
+  it("does not call onProgress when there are no checks", async () => {
+    const onProgress = vi.fn();
+    await validate({}, [], [], {
+      provider: scriptedFromMap({}),
+      onProgress,
+    });
+    expect(onProgress).not.toHaveBeenCalled();
   });
 });

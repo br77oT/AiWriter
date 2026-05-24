@@ -299,3 +299,55 @@ describe("ValidationRail — evaluator errors", () => {
     ).toBeDisabled();
   });
 });
+
+describe("ValidationRail — live progress", () => {
+  it("shows a generic 'Evaluating N checks' message while running with no progress yet", () => {
+    const doc = {
+      ...makeDoc(),
+      checks: [
+        { id: "c1", question: "What?" },
+        { id: "c2", question: "When?" },
+        { id: "c3", question: "Who?" },
+      ],
+    };
+    render(<ValidationRail document={doc} report={null} status="running" />);
+    const status = screen.getByTestId("validation-status");
+    expect(status).toHaveTextContent(/Evaluating 3 checks/i);
+    expect(status).toHaveTextContent(/one LLM call each/i);
+  });
+
+  it("shows the current check index and question once the first progress event arrives", () => {
+    const doc = {
+      ...makeDoc(),
+      checks: [
+        { id: "c1", question: "What?" },
+        { id: "c2", question: "Who was affected?" },
+      ],
+    };
+    render(
+      <ValidationRail
+        document={doc}
+        report={null}
+        status="running"
+        progress={{ index: 1, total: 2, question: "Who was affected?" }}
+      />
+    );
+    const status = screen.getByTestId("validation-status");
+    expect(status).toHaveTextContent(/Evaluating check 2 of 2/);
+    expect(
+      screen.getByTestId("validation-progress-question")
+    ).toHaveTextContent(/Who was affected\?/);
+  });
+
+  it("does not render the progress block when idle", () => {
+    render(
+      <ValidationRail
+        document={makeDoc()}
+        report={reportAllGreen}
+        status="idle"
+        progress={{ index: 0, total: 1, question: "What?" }}
+      />
+    );
+    expect(screen.queryByTestId("validation-status")).toBeNull();
+  });
+});

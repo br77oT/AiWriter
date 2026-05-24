@@ -9,6 +9,14 @@ interface ValidationRailProps {
   document: Document;
   report: ValidationReport | null;
   status: "idle" | "running" | "error";
+  // Live per-check progress while a validate run is streaming. `null` when
+  // no validate is in flight, or when the run hasn't reached its first
+  // check yet (structural eval is instant; no progress event for it).
+  progress?: {
+    index: number; // 0-based
+    total: number;
+    question: string;
+  } | null;
   autofixBusy?: boolean;
   lockedSkipped?: string[];
   onAutofix?: (mode: AutofixMode) => void;
@@ -42,6 +50,7 @@ export function ValidationRail({
   document,
   report,
   status,
+  progress = null,
   autofixBusy = false,
   lockedSkipped,
   onAutofix,
@@ -122,9 +131,31 @@ export function ValidationRail({
       )}
 
       {status === "running" && (
-        <p className="text-neutral-500" data-testid="validation-status">
-          Running validation…
-        </p>
+        <div
+          data-testid="validation-status"
+          className="space-y-1 rounded border border-neutral-200 bg-neutral-50 p-2"
+        >
+          <p className="flex items-center gap-2 text-neutral-700">
+            <span
+              aria-hidden="true"
+              className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-neutral-300 border-t-neutral-700"
+            />
+            {progress
+              ? `Evaluating check ${progress.index + 1} of ${progress.total}`
+              : `Evaluating ${document.checks.length} check${
+                  document.checks.length === 1 ? "" : "s"
+                } (one LLM call each)…`}
+          </p>
+          {progress && (
+            <p
+              data-testid="validation-progress-question"
+              className="truncate pl-5 text-xs italic text-neutral-500"
+              title={progress.question}
+            >
+              “{progress.question}”
+            </p>
+          )}
+        </div>
       )}
       {status === "error" && (
         <p className="text-red-700" data-testid="validation-status">

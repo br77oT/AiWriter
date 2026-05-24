@@ -99,6 +99,10 @@ export function Workspace({
   const [document, setDocument] = useState<Document>(initial);
   const [report, setReport] = useState<ValidationReport | null>(null);
   const [status, setStatus] = useState<ValidationStatus>("idle");
+  // Live per-check progress while validate is streaming. `null` between runs.
+  const [validationProgress, setValidationProgress] = useState<
+    { index: number; total: number; question: string } | null
+  >(null);
   const [genStatus, setGenStatus] = useState<GenerationStatus>("idle");
   const [rewriteTarget, setRewriteTarget] = useState<RewriteTarget | null>(
     null
@@ -158,6 +162,13 @@ export function Workspace({
     }
   }, [document.id]);
 
+  // Mirror the document title into the browser window title so users with
+  // many tabs can find the document at a glance. Re-runs on rename.
+  useEffect(() => {
+    const title = document.title?.trim() || "Untitled document";
+    window.document.title = `${title} — AiWriter`;
+  }, [document.title]);
+
   // Restore which panes the user collapsed last time. Hydrated in an effect
   // (not a lazy initializer) so the server render and first client render
   // agree — localStorage is client-only. With no saved preference the
@@ -216,6 +227,7 @@ export function Workspace({
   const runValidate = useCallback(async () => {
     const seq = ++requestSeqRef.current;
     setStatus("running");
+    setValidationProgress(null);
     try {
       const res = await fetch("/api/validate", {
         method: "POST",
@@ -223,26 +235,84 @@ export function Workspace({
         body: JSON.stringify({ documentId: document.id }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const {
-        report: next,
-        document: nextDoc,
-        promptLog: log,
-      } = (await res.json()) as {
+      // The route streams NDJSON: one event per line, progress + final done.
+      // Read chunks, split on "\n", parse each. Final event is `done`.
+      const reader = res.body?.getReader();
+      if (!reader) throw new Error("No response body");
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let finalDone: {
         report: ValidationReport;
-        // Slice 011: validate now snapshots a Version, so the route also
-        // returns the updated document.
         document?: Document;
         promptLog?: PromptLog;
-      };
-      // Stale response — a newer request has been kicked off since.
+      } | null = null;
+      let streamError: string | null = null;
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        let nl: number;
+        while ((nl = buffer.indexOf("\n")) !== -1) {
+          const line = buffer.slice(0, nl);
+          buffer = buffer.slice(nl + 1);
+          if (line.trim() === "") continue;
+          const event = JSON.parse(line) as
+            | {
+                type: "check-start";
+                index: number;
+                total: number;
+                checkId: string;
+                question: string;
+              }
+            | {
+                type: "check-done";
+                index: number;
+                total: number;
+                checkId: string;
+                result: ValidationReport["questions"][number];
+              }
+            | {
+                type: "done";
+                report: ValidationReport;
+                document?: Document;
+                promptLog?: PromptLog;
+              }
+            | { type: "error"; message: string };
+          // Stale stream — a newer validate has started; drop these events.
+          if (seq !== requestSeqRef.current) continue;
+          if (event.type === "check-start") {
+            setValidationProgress({
+              index: event.index,
+              total: event.total,
+              question: event.question,
+            });
+          } else if (event.type === "done") {
+            finalDone = {
+              report: event.report,
+              document: event.document,
+              promptLog: event.promptLog,
+            };
+          } else if (event.type === "error") {
+            streamError = event.message;
+          }
+          // check-done events are informational — the final 'done' carries
+          // the consolidated report; no per-check state to mutate here.
+        }
+      }
       if (seq !== requestSeqRef.current) return;
-      setReport(next);
-      if (nextDoc) setDocument(nextDoc);
-      if (log) setPromptLog(log);
+      if (streamError || !finalDone) {
+        throw new Error(streamError ?? "Stream ended without a 'done' event");
+      }
+      setReport(finalDone.report);
+      if (finalDone.document) setDocument(finalDone.document);
+      if (finalDone.promptLog) setPromptLog(finalDone.promptLog);
       setStatus("idle");
+      setValidationProgress(null);
     } catch {
       if (seq !== requestSeqRef.current) return;
       setStatus("error");
+      setValidationProgress(null);
     }
   }, [document.id]);
 
@@ -737,6 +807,7 @@ export function Workspace({
       document={document}
       report={report}
       status={status}
+      progress={validationProgress}
       autofixBusy={autofixStatus === "running"}
       lockedSkipped={lockedSkipped}
       // Hide the auto-fix footer in reviewer mode by withholding the handler.

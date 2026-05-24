@@ -37,6 +37,28 @@ function installFetch(handler: (input: RequestInfo, init?: RequestInit) => unkno
     "fetch",
     vi.fn(async (input: RequestInfo, init?: RequestInit) => {
       const result = await handler(input, init);
+      const url = String(input);
+      // /api/validate now streams NDJSON. Tests still return the legacy
+      // payload shape; wrap it in a one-event 'done' stream so the
+      // streaming client can read the same fixture without changes.
+      if (url.endsWith("/api/validate")) {
+        const lines = (result as { __ndjson?: unknown[] }).__ndjson
+          ? (result as { __ndjson: unknown[] }).__ndjson
+          : [{ type: "done", ...(result as Record<string, unknown>) }];
+        const encoder = new TextEncoder();
+        const body = new ReadableStream<Uint8Array>({
+          start(controller) {
+            for (const event of lines) {
+              controller.enqueue(encoder.encode(JSON.stringify(event) + "\n"));
+            }
+            controller.close();
+          },
+        });
+        return new Response(body, {
+          status: 200,
+          headers: { "Content-Type": "application/x-ndjson" },
+        });
+      }
       return {
         ok: true,
         status: 200,
@@ -193,6 +215,43 @@ describe("Workspace shell", () => {
     expect(
       window.localStorage.getItem("aiwriter:lastOpenedDocId")
     ).toBe("doc-42");
+  });
+});
+
+describe("Workspace — window title", () => {
+  it("seeds document.title to '<doc title> — AiWriter' on mount", () => {
+    const doc = {
+      ...newDocument("doc-title-1", "2026-04-29T00:00:00.000Z"),
+      title: "Q2 outage postmortem",
+    };
+    render(<Workspace document={doc} />);
+    expect(window.document.title).toBe("Q2 outage postmortem — AiWriter");
+  });
+
+  it("updates the window title when the doc is renamed in-place", async () => {
+    installFetch((input, init) => {
+      const url = String(input);
+      if (
+        init?.method === "PUT" &&
+        url.includes("/api/documents/")
+      ) {
+        return {};
+      }
+      if (url.endsWith("/api/documents")) return { documents: [] };
+      if (url.endsWith("/api/templates")) return { templates: [] };
+      return {};
+    });
+    const doc = newDocument("doc-title-2", "2026-04-29T00:00:00.000Z");
+    render(<Workspace document={doc} />);
+    expect(window.document.title).toBe("Untitled document — AiWriter");
+
+    fireEvent.click(screen.getByTestId("doc-title"));
+    const input = screen.getByTestId("doc-title-input") as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "Brand-new title" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    await new Promise((r) => setTimeout(r, 0));
+    expect(window.document.title).toBe("Brand-new title — AiWriter");
   });
 });
 
