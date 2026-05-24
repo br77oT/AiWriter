@@ -9,16 +9,12 @@ type ModalKind = "about" | "contact" | null;
 // Persistent app footer. Lives in the root layout so it renders on every
 // page.
 //
-// Two stacked bars:
-//   1. About / Contact / × — hideable; the × persists a "don't show again"
-//      preference to localStorage.
-//   2. Copyright (© AiWriter℠) — always visible, never hideable, so the
-//      mark stays at the bottom of the page even after the user dismisses
-//      the upper bar.
+// Single row: copyright on the left, About / Contact / × on the right.
+// The × hides the whole footer and persists the preference to localStorage.
 export function AppFooter() {
-  // Default to hidden during SSR + initial paint so we never flash the upper
-  // bar for users who already dismissed it; the effect below corrects it
-  // on the client.
+  // Default to hidden during SSR + initial paint so we never flash the bar
+  // for users who already dismissed it; the effect below corrects it on
+  // the client.
   const [hidden, setHidden] = useState(true);
   const [modal, setModal] = useState<ModalKind>(null);
 
@@ -39,13 +35,19 @@ export function AppFooter() {
     }
   }
 
+  if (hidden) return null;
+
   return (
     <>
-      {!hidden && (
-        <div
-          data-testid="app-footer"
-          className="flex items-center justify-end gap-3 border-t border-neutral-200 bg-white px-4 py-1.5 text-xs text-neutral-600"
-        >
+      <footer
+        data-testid="app-footer"
+        className="flex items-center justify-between gap-3 border-t border-neutral-200 bg-white px-4 py-1.5 text-xs text-neutral-600"
+      >
+        <span data-testid="app-copyright" className="text-neutral-400">
+          © 2026 AiWriter
+          <sup className="ml-0.5 text-[0.6rem] font-medium">℠</sup>
+        </span>
+        <div className="flex items-center gap-3">
           <button
             type="button"
             onClick={() => setModal("about")}
@@ -70,16 +72,7 @@ export function AppFooter() {
             ×
           </button>
         </div>
-      )}
-      <div
-        data-testid="app-copyright-bar"
-        className="border-t border-neutral-200 bg-white px-4 py-1 text-center text-[10px] text-neutral-400"
-      >
-        <span data-testid="app-copyright">
-          © AiWriter
-          <sup className="ml-0.5 text-[0.55rem] font-medium">℠</sup>
-        </span>
-      </div>
+      </footer>
       {modal && <InfoModal kind={modal} onClose={() => setModal(null)} />}
     </>
   );

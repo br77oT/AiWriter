@@ -20,25 +20,26 @@ describe("AppFooter", () => {
     ).toBeInTheDocument();
   });
 
-  it("× hides the upper footer but keeps the copyright bar visible", () => {
+  it("× hides the whole footer and persists the choice to localStorage", () => {
     render(<AppFooter />);
     fireEvent.click(screen.getByRole("button", { name: /hide footer/i }));
     expect(screen.queryByTestId("app-footer")).toBeNull();
-    expect(screen.getByTestId("app-copyright-bar")).toBeInTheDocument();
     expect(window.localStorage.getItem("aiwriter:footerHidden")).toBe("1");
   });
 
-  it("upper footer stays hidden when localStorage says so; copyright remains", () => {
+  it("stays hidden on subsequent renders when localStorage says so", () => {
     window.localStorage.setItem("aiwriter:footerHidden", "1");
     render(<AppFooter />);
     expect(screen.queryByTestId("app-footer")).toBeNull();
-    expect(screen.getByTestId("app-copyright-bar")).toBeInTheDocument();
   });
 
-  it("renders an always-visible © AiWriter℠ copyright line", () => {
+  it("renders the © 2026 AiWriter℠ copyright on the same row as the links", () => {
     render(<AppFooter />);
+    const footer = screen.getByTestId("app-footer");
     const copy = screen.getByTestId("app-copyright");
-    expect(copy).toHaveTextContent(/© AiWriter/);
+    // Copyright sits inside the same footer element as the About/Contact links.
+    expect(footer.contains(copy)).toBe(true);
+    expect(copy).toHaveTextContent(/© 2026 AiWriter/);
     expect(copy).toHaveTextContent("℠");
   });
 
