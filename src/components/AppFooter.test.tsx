@@ -43,11 +43,17 @@ describe("AppFooter", () => {
     expect(copy).toHaveTextContent("℠");
   });
 
-  it("About button opens a modal with the about copy; Close dismisses it", () => {
+  it("About button opens a modal with the problem-focused copy; Close dismisses it", () => {
     render(<AppFooter />);
     fireEvent.click(screen.getByRole("button", { name: /^about$/i }));
     const modal = screen.getByTestId("footer-modal-about");
-    expect(modal).toHaveTextContent(/aiwriter turns a spec/i);
+    // Lead sentence frames the audience.
+    expect(modal).toHaveTextContent(/structured documents/i);
+    // Each of the four problem bullets is named in bold.
+    expect(modal).toHaveTextContent(/drafts drift/i);
+    expect(modal).toHaveTextContent(/can.t tell if the result/i);
+    expect(modal).toHaveTextContent(/re-prompting/i);
+    expect(modal).toHaveTextContent(/black-box/i);
     fireEvent.click(
       screen.getByRole("button", { name: /^close$/i })
     );

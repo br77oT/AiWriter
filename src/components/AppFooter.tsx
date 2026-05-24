@@ -110,12 +110,48 @@ function InfoModal({
           </button>
         </div>
         {kind === "about" ? (
-          <p className="text-neutral-700">
-            AiWriter turns a spec, outline, and a list of checks into a
-            structured draft, then grades the draft against those checks.
-            Generation can run against the Anthropic API or a local
-            ClaudeInBrowserSocket server.
-          </p>
+          <div className="space-y-2 text-neutral-700">
+            <p>
+              AiWriter helps you draft structured documents (postmortems,
+              proposals, briefs, design docs) with AI without losing control
+              of the output.
+            </p>
+            <p>It addresses a few problems with one-shot AI drafting:</p>
+            <ul className="list-disc space-y-1.5 pl-5 text-xs">
+              <li>
+                <span className="font-semibold">Drafts drift from what you
+                need.</span>{" "}
+                You define the spec, outline, and checks up front; the model
+                writes one section at a time against that scaffold instead of
+                inventing a shape.
+              </li>
+              <li>
+                <span className="font-semibold">You can&apos;t tell if the
+                result is any good.</span>{" "}
+                Validation grades every section structurally and runs each
+                check against the prose, so missing, thin, or unanswered
+                content is visible at a glance.
+              </li>
+              <li>
+                <span className="font-semibold">Re-prompting throws away good
+                work.</span>{" "}
+                Lock sections you like; Rewrite or Expand the ones you
+                don&apos;t. Locked text is bit-identical across regenerations.
+              </li>
+              <li>
+                <span className="font-semibold">AI workflows are
+                black-boxes.</span>{" "}
+                The Prompt Inspector shows the exact prompts that hit the
+                model; version history snapshots every Generate, Validate,
+                Rewrite, and Auto-fix.
+              </li>
+            </ul>
+            <p>
+              Generation runs against the Anthropic API by default, or against
+              a local ClaudeInBrowserSocket server when you set{" "}
+              <code>LLM_PROVIDER=local</code>.
+            </p>
+          </div>
         ) : (
           <p className="text-neutral-700">
             Email{" "}
