@@ -59,6 +59,24 @@ export interface Version {
   label: string;
   draftSections: Record<string, string>;
   validationReport: ValidationReport | null;
+  // Optional per-event telemetry the Statistics pane consumes. Older
+  // versions (pre-instrumentation) and "Restore" events leave it undefined.
+  metrics?: VersionMetrics;
+}
+
+export interface VersionMetrics {
+  // Wall-clock duration of the LLM-touching server-side work, in ms.
+  durationMs?: number;
+  // Which provider produced this version. Influences cost interpretation:
+  // "anthropic" charges the API price, "local" is free but we still surface
+  // a would-be-cost estimate against the default Anthropic model.
+  provider?: "anthropic" | "local" | "stub";
+  // Concrete model name when known (e.g. "claude-sonnet-4-5"). Used by the
+  // pricing helper to look up rates.
+  model?: string;
+  // Sum of token usage across every LLM exchange in this event. Local-mode
+  // runs typically omit this (the WS server doesn't surface counts).
+  tokenUsage?: { inputTokens: number; outputTokens: number };
 }
 
 export interface ChecksConfig {

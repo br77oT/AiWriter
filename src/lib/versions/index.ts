@@ -11,12 +11,17 @@
 // section-keyed shape means cheap, but we don't bother with delta storage in
 // V1 — revisit if size becomes a hotspot.
 
-import { randomUUID } from "node:crypto";
-import type { Document, ValidationReport, Version } from "../types";
+import type {
+  Document,
+  ValidationReport,
+  Version,
+  VersionMetrics,
+} from "../types";
 
 export interface RecordOpts {
   id?: string;
   now?: string;
+  metrics?: VersionMetrics;
 }
 
 export interface SectionDiff {
@@ -32,7 +37,7 @@ export function recordVersion(
   validationReport: ValidationReport | null,
   opts: RecordOpts = {}
 ): Document {
-  const id = opts.id ?? randomUUID();
+  const id = opts.id ?? globalThis.crypto.randomUUID();
   const timestamp = opts.now ?? new Date().toISOString();
   const version: Version = {
     id,
@@ -43,6 +48,7 @@ export function recordVersion(
     validationReport: validationReport
       ? cloneReport(validationReport)
       : null,
+    ...(opts.metrics ? { metrics: opts.metrics } : {}),
   };
   return {
     ...doc,

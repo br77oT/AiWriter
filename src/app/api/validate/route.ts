@@ -2,8 +2,9 @@ import { NextResponse } from "next/server";
 import { getDefaultStore } from "@/lib/document-store";
 import { validate } from "@/lib/validation";
 import { recordVersion } from "@/lib/versions";
+import { createRecordingProvider, getDefaultProvider } from "@/lib/llm";
 
-// POST /api/validate { documentId } → { report, document }
+// POST /api/validate { documentId } → { report, document, promptLog }
 //
 // Slice 011 wires this route into version history: every on-demand validate
 // snapshots the (unchanged) draft + the fresh report, so users can see how
@@ -30,9 +31,31 @@ export async function POST(req: Request) {
   if (!doc) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
-  const report = await validate(doc.draftSections, doc.outline, doc.checks);
+  // Wrap the provider so the Prompt Inspector can show the per-check
+  // evaluator prompts this route sent.
+  const recorder = createRecordingProvider(getDefaultProvider());
+  const startedAt = Date.now();
+  const report = await validate(doc.draftSections, doc.outline, doc.checks, {
+    provider: recorder,
+  });
+  const durationMs = Date.now() - startedAt;
   const updated = store.update(documentId, (existing) =>
-    recordVersion(existing, "Validate", report)
+    recordVersion(existing, "Validate", report, {
+      metrics: {
+        durationMs,
+        provider: recorder.kind,
+        model: recorder.model,
+        tokenUsage: recorder.totalUsage(),
+      },
+    })
   );
-  return NextResponse.json({ report, document: updated });
+  return NextResponse.json({
+    report,
+    document: updated,
+    promptLog: {
+      kind: "Validate",
+      timestamp: new Date().toISOString(),
+      exchanges: recorder.exchanges,
+    },
+  });
 }

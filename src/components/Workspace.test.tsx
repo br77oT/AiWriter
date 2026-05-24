@@ -1988,6 +1988,7 @@ describe("Workspace responsive layout (slice 013)", () => {
     expect(within(tablist).getByRole("tab", { name: /^checks$/i })).toBeInTheDocument();
     expect(within(tablist).getByRole("tab", { name: /^draft$/i })).toBeInTheDocument();
     expect(within(tablist).getByRole("tab", { name: /^assembled$/i })).toBeInTheDocument();
+    expect(within(tablist).getByRole("tab", { name: /^stats$/i })).toBeInTheDocument();
     expect(within(tablist).getByRole("tab", { name: /^validation$/i })).toBeInTheDocument();
 
     // Default tab is Spec — only the Spec pane heading is visible.

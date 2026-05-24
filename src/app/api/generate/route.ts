@@ -2,8 +2,9 @@ import { NextResponse } from "next/server";
 import { getDefaultStore } from "@/lib/document-store";
 import { generate } from "@/lib/generation";
 import { recordVersion } from "@/lib/versions";
+import { createRecordingProvider, getDefaultProvider } from "@/lib/llm";
 
-// POST /api/generate { documentId } → { document, draftSections }
+// POST /api/generate { documentId } → { document, draftSections, promptLog }
 //
 // Full-draft mode: regenerates every unlocked section. Locked sections stay
 // bit-identical (slice 007 introduces the lock UI; the route already honors
@@ -31,11 +32,17 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
+  // Wrap the provider so we can return the exact per-section prompts that
+  // hit the LLM — the Prompt Inspector panel renders these.
+  const recorder = createRecordingProvider(getDefaultProvider());
+  const startedAt = Date.now();
   const generated = await generate(doc.spec, doc.outline, doc.checks, {
+    provider: recorder,
     lockedSectionIds: doc.lockedSectionIds,
     outlineFrozen: doc.outlineFrozen,
     existingDraft: doc.draftSections,
   });
+  const durationMs = Date.now() - startedAt;
 
   // Merge: locked sections retain their existing prose; only unlocked IDs
   // get overwritten. Sections whose outline ID was removed since the last
@@ -57,11 +64,23 @@ export async function POST(req: Request) {
     // null at this point — the workspace will fire /api/validate next when
     // checksConfig.evaluateAfterEveryGeneration is on, which records its own
     // version including the report.
-    return recordVersion(next, "Generate", null);
+    return recordVersion(next, "Generate", null, {
+      metrics: {
+        durationMs,
+        provider: recorder.kind,
+        model: recorder.model,
+        tokenUsage: recorder.totalUsage(),
+      },
+    });
   });
 
   return NextResponse.json({
     document: updated,
     draftSections: merged,
+    promptLog: {
+      kind: "Generate",
+      timestamp: new Date().toISOString(),
+      exchanges: recorder.exchanges,
+    },
   });
 }

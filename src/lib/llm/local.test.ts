@@ -73,7 +73,9 @@ describe("createLocalProvider", () => {
       systemPrompt: "You are concise.",
       messages: [{ role: "user", content: "Say hi." }],
     });
-    expect(out).toBe("hello back");
+    expect(out.text).toBe("hello back");
+    // Local mode doesn't surface token counts.
+    expect(out.usage).toBeUndefined();
     expect(receivedPrompt).toBe("You are concise.\n\nSay hi.");
   });
 
@@ -86,10 +88,12 @@ describe("createLocalProvider", () => {
     });
     const provider = createLocalProvider({ url: server.url, timeoutMs: 5000 });
     expect(
-      await provider.complete({
-        systemPrompt: "s",
-        messages: [{ role: "user", content: "u" }],
-      })
+      (
+        await provider.complete({
+          systemPrompt: "s",
+          messages: [{ role: "user", content: "u" }],
+        })
+      ).text
     ).toBe("ok");
   });
 

@@ -16,20 +16,41 @@ export interface LlmRequest {
   seed?: string;
 }
 
+// Token counts surfaced by providers that expose them (currently only the
+// Anthropic-backed provider). The Statistics pane uses these to estimate
+// per-event cost; local- and stub-mode runs leave usage undefined.
+export interface TokenUsage {
+  inputTokens: number;
+  outputTokens: number;
+}
+
+export interface LlmResponse {
+  text: string;
+  usage?: TokenUsage;
+}
+
 export interface LlmProvider {
-  complete(request: LlmRequest): Promise<string>;
+  complete(request: LlmRequest): Promise<LlmResponse>;
+  // What kind of provider this is, plus the concrete model where one
+  // applies. Routes read these so the Version they record can be priced
+  // correctly later. Optional for backward compatibility with test seams.
+  readonly kind?: "anthropic" | "local" | "stub";
+  readonly model?: string;
 }
 
 // Echo stub — returns the last user message verbatim, prefixed with the seed
 // (if any) for deterministic testing. Real provider lands in slices 002/006.
 export function createStubProvider(): LlmProvider {
   return {
-    async complete(request: LlmRequest): Promise<string> {
+    kind: "stub",
+    async complete(request: LlmRequest): Promise<LlmResponse> {
       const lastUser = [...request.messages]
         .reverse()
         .find((m) => m.role === "user");
       const body = lastUser?.content ?? "";
-      return request.seed ? `[${request.seed}] ${body}` : body;
+      return {
+        text: request.seed ? `[${request.seed}] ${body}` : body,
+      };
     },
   };
 }
@@ -41,8 +62,9 @@ export function createScriptedProvider(
   script: (request: LlmRequest) => string | Promise<string>
 ): LlmProvider {
   return {
-    async complete(request: LlmRequest): Promise<string> {
-      return script(request);
+    kind: "stub",
+    async complete(request: LlmRequest): Promise<LlmResponse> {
+      return { text: await script(request) };
     },
   };
 }
@@ -86,7 +108,9 @@ export function createAnthropicProvider(
     return clientPromise;
   }
   return {
-    async complete(request: LlmRequest): Promise<string> {
+    kind: "anthropic",
+    model,
+    async complete(request: LlmRequest): Promise<LlmResponse> {
       const client = await getClient();
       const response = await client.messages.create({
         model,
@@ -97,19 +121,26 @@ export function createAnthropicProvider(
           content: m.content,
         })),
       });
-      return response.content
+      const text = response.content
         .filter((block): block is { type: "text"; text: string } =>
           block.type === "text"
         )
         .map((block) => block.text)
         .join("\n");
+      const usage = response.usage
+        ? {
+            inputTokens: response.usage.input_tokens,
+            outputTokens: response.usage.output_tokens,
+          }
+        : undefined;
+      return { text, usage };
     },
   };
 }
 
 // Minimal shape we depend on — kept here so the SDK's deep types don't leak
 // into our module. The actual SDK types are richer; we only need text
-// content blocks back.
+// content blocks back, plus the input/output token counts from `usage`.
 interface AnthropicCreateBody {
   model: string;
   max_tokens: number;
@@ -118,6 +149,7 @@ interface AnthropicCreateBody {
 }
 interface AnthropicResponse {
   content: Array<{ type: string; text?: string }>;
+  usage?: { input_tokens: number; output_tokens: number };
 }
 
 // Local provider — talks to a ClaudeInBrowserSocket server over WebSocket.
@@ -144,9 +176,14 @@ export function createLocalProvider(
   const url = options.url ?? LOCAL_DEFAULT_URL;
   const timeoutMs = options.timeoutMs ?? LOCAL_DEFAULT_TIMEOUT_MS;
   return {
-    async complete(request: LlmRequest): Promise<string> {
+    kind: "local",
+    async complete(request: LlmRequest): Promise<LlmResponse> {
       const prompt = renderPromptForLocal(request);
-      return await sendOnce(url, prompt, timeoutMs);
+      const text = await sendOnce(url, prompt, timeoutMs);
+      // Local mode (claude -p over WS) doesn't surface token counts —
+      // leave usage undefined; the Statistics pane shows '—' for tokens
+      // and uses a fallback-model price for the "would-be cost" estimate.
+      return { text };
     },
   };
 }
@@ -359,12 +396,14 @@ export function setDefaultProviderForTesting(provider: LlmProvider | null): void
 // — we wrap the provider: a RecordingProvider delegates `complete` unchanged
 // but keeps a transcript of every request/response pair it saw.
 
-// One captured LLM round-trip: the exact request a route sent plus the raw
-// text that came back.
+// One captured LLM round-trip: the exact request a route sent, the raw text
+// that came back, plus any per-call token usage the provider surfaced.
+// `usage` stays undefined for stub / local mode (no counts available).
 export interface PromptExchange {
   systemPrompt: string;
   messages: LlmMessage[];
   response: string;
+  usage?: TokenUsage;
 }
 
 // The bundle of exchanges produced by a single user action (one Generate,
@@ -380,6 +419,9 @@ export interface RecordingProvider extends LlmProvider {
   // Live transcript — appended to on every `complete` call. Read it after the
   // engine work finishes to build a PromptLog.
   readonly exchanges: PromptExchange[];
+  // Sum of usage across every exchange so far. Returns undefined if no
+  // exchange surfaced usage (stub / local mode).
+  totalUsage(): TokenUsage | undefined;
 }
 
 // Wraps any provider so callers can inspect what was sent. The inner
@@ -390,14 +432,29 @@ export function createRecordingProvider(
   const exchanges: PromptExchange[] = [];
   return {
     exchanges,
-    async complete(request: LlmRequest): Promise<string> {
+    kind: inner.kind,
+    model: inner.model,
+    async complete(request: LlmRequest): Promise<LlmResponse> {
       const response = await inner.complete(request);
       exchanges.push({
         systemPrompt: request.systemPrompt,
         messages: request.messages,
-        response,
+        response: response.text,
+        usage: response.usage,
       });
       return response;
+    },
+    totalUsage(): TokenUsage | undefined {
+      let any = false;
+      let input = 0;
+      let output = 0;
+      for (const x of exchanges) {
+        if (!x.usage) continue;
+        any = true;
+        input += x.usage.inputTokens;
+        output += x.usage.outputTokens;
+      }
+      return any ? { inputTokens: input, outputTokens: output } : undefined;
     },
   };
 }

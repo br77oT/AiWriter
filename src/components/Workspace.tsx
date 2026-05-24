@@ -17,6 +17,7 @@ import { OutlinePane } from "./panes/OutlinePane";
 import { ChecksPane } from "./panes/ChecksPane";
 import { DraftPane } from "./panes/DraftPane";
 import { AssembledDraftPane } from "./panes/AssembledDraftPane";
+import { StatisticsPane } from "./panes/StatisticsPane";
 import { ValidationRail, type AutofixMode } from "./panes/ValidationRail";
 import { SectionRewriteModal } from "./SectionRewriteModal";
 import { TemplatePickerModal } from "./TemplatePickerModal";
@@ -54,12 +55,18 @@ const REVALIDATE_DEBOUNCE_MS = 600;
 // validation rail are never collapsible — they're the focus. "assembled"
 // (the read-only stitched preview) is collapsed by default so the workspace
 // stays focused on the editing surface until the user explicitly opens it.
-type CollapsiblePaneId = "spec" | "outline" | "checks" | "assembled";
+type CollapsiblePaneId =
+  | "spec"
+  | "outline"
+  | "checks"
+  | "assembled"
+  | "stats";
 const COLLAPSIBLE_PANE_IDS: CollapsiblePaneId[] = [
   "spec",
   "outline",
   "checks",
   "assembled",
+  "stats",
 ];
 
 type ValidationStatus = "idle" | "running" | "error";
@@ -703,6 +710,15 @@ export function Workspace({
       }
     />
   );
+  const statisticsPane = (
+    <StatisticsPane
+      document={document}
+      collapsed={!isMobile && collapsedPanes.has("stats")}
+      onToggleCollapse={
+        isMobile ? undefined : () => togglePaneCollapsed("stats")
+      }
+    />
+  );
   const validationRail = (
     <ValidationRail
       document={document}
@@ -754,6 +770,7 @@ export function Workspace({
           checks={checksPane}
           draft={draftPane}
           assembled={assembledDraftPane}
+          stats={statisticsPane}
           validation={validationRail}
         />
       ) : (
@@ -765,13 +782,15 @@ export function Workspace({
               // Collapsed panes shrink to a thin strip; the freed width flows
               // to the Draft column (1fr), which is the actual writing surface.
               // When the Assembled pane is expanded it takes 1fr too, so Draft
-              // and Assembled share width 50/50 side-by-side.
+              // and Assembled share width 50/50 side-by-side. Stats is a
+              // narrower fixed width when expanded — it's a glance-able card.
               gridTemplateColumns: [
                 collapsedPanes.has("spec") ? "2.5rem" : "260px",
                 collapsedPanes.has("outline") ? "2.5rem" : "260px",
                 collapsedPanes.has("checks") ? "2.5rem" : "260px",
                 "1fr",
                 collapsedPanes.has("assembled") ? "2.5rem" : "1fr",
+                collapsedPanes.has("stats") ? "2.5rem" : "240px",
               ].join(" "),
             }}
           >
@@ -780,6 +799,7 @@ export function Workspace({
             {checksPane}
             {draftPane}
             {assembledDraftPane}
+            {statisticsPane}
           </main>
           {validationRail}
         </div>

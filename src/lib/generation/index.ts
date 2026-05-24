@@ -71,8 +71,8 @@ export async function generate(
   const result: DraftSections = {};
   for (const section of targets) {
     const request = buildSectionRequest(spec, outline, checks, section);
-    const raw = await provider.complete(request);
-    result[section.id] = raw.trim();
+    const { text } = await provider.complete(request);
+    result[section.id] = text.trim();
   }
   return result;
 }
@@ -138,8 +138,8 @@ export async function generateSection(
     priorText,
     options.instruction ?? ""
   );
-  const raw = await provider.complete(request);
-  return raw.trim();
+  const { text } = await provider.complete(request);
+  return text.trim();
 }
 
 // --- Prompt construction ------------------------------------------------

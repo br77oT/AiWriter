@@ -127,8 +127,8 @@ async function evaluateQuestions(
   for (const check of checks) {
     const request = buildCheckRequest(draftText, check.question);
     try {
-      const raw = await provider.complete(request);
-      const parsed = JSON.parse(extractJson(raw)) as RawCheckResponse;
+      const { text } = await provider.complete(request);
+      const parsed = JSON.parse(extractJson(text)) as RawCheckResponse;
       results.push(normalizeCheckResult(check.id, parsed));
     } catch {
       // The provider threw, or returned text that isn't JSON. The check was

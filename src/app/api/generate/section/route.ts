@@ -2,10 +2,11 @@ import { NextResponse } from "next/server";
 import { getDefaultStore } from "@/lib/document-store";
 import { generateSection, type SectionMode, type PreserveFlags } from "@/lib/generation";
 import { recordVersion } from "@/lib/versions";
+import { createRecordingProvider, getDefaultProvider } from "@/lib/llm";
 
 // POST /api/generate/section
 //   { documentId, outlineId, mode: "rewrite" | "expand", instruction?, preserve? }
-//   → { document, outlineId, sectionText }
+//   → { document, outlineId, sectionText, promptLog }
 //
 // The engine returns prose for the target section only — by construction this
 // route can never modify sibling sections (PRD §"Lock semantics are hard" /
@@ -72,6 +73,8 @@ export async function POST(req: Request) {
     );
   }
 
+  const recorder = createRecordingProvider(getDefaultProvider());
+  const startedAt = Date.now();
   const sectionText = await generateSection(
     doc.spec,
     doc.outline,
@@ -79,11 +82,13 @@ export async function POST(req: Request) {
     outlineId,
     {
       mode,
+      provider: recorder,
       instruction,
       preserve,
       existingDraft: doc.draftSections,
     }
   );
+  const durationMs = Date.now() - startedAt;
 
   const heading =
     doc.outline.find((s) => s.id === outlineId)?.heading ?? outlineId;
@@ -96,12 +101,24 @@ export async function POST(req: Request) {
         [outlineId]: sectionText,
       },
     };
-    return recordVersion(next, `${verb}: ${heading}`, null);
+    return recordVersion(next, `${verb}: ${heading}`, null, {
+      metrics: {
+        durationMs,
+        provider: recorder.kind,
+        model: recorder.model,
+        tokenUsage: recorder.totalUsage(),
+      },
+    });
   });
 
   return NextResponse.json({
     document: updated,
     outlineId,
     sectionText,
+    promptLog: {
+      kind: verb,
+      timestamp: new Date().toISOString(),
+      exchanges: recorder.exchanges,
+    },
   });
 }

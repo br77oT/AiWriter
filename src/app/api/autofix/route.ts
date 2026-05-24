@@ -3,6 +3,7 @@ import { getDefaultStore } from "@/lib/document-store";
 import { generateSection } from "@/lib/generation";
 import { validate } from "@/lib/validation";
 import { recordVersion } from "@/lib/versions";
+import { createRecordingProvider, getDefaultProvider } from "@/lib/llm";
 import type { Document, ValidationReport } from "@/lib/types";
 
 // POST /api/autofix
@@ -62,9 +63,17 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
+  // One recorder spans the whole flow: the planning validate() call and every
+  // section rewrite below. The Prompt Inspector then shows the full set of
+  // prompts the auto-fix sent to the LLM, in order.
+  const recorder = createRecordingProvider(getDefaultProvider());
+  const startedAt = Date.now();
+
   // Compute a fresh report so target selection reflects the current document
   // state — the UI may hold a stale report if the user typed since.
-  const report = await validate(doc.draftSections, doc.outline, doc.checks);
+  const report = await validate(doc.draftSections, doc.outline, doc.checks, {
+    provider: recorder,
+  });
 
   const { plan, lockedSkipped } =
     mode === "questions"
@@ -82,6 +91,7 @@ export async function POST(req: Request) {
       item.outlineId,
       {
         mode: "rewrite",
+        provider: recorder,
         instruction: item.instruction,
         existingDraft: doc.draftSections,
       }
@@ -89,6 +99,7 @@ export async function POST(req: Request) {
     regenerated[item.outlineId] = sectionText;
   }
 
+  const durationMs = Date.now() - startedAt;
   let updated = doc;
   if (Object.keys(regenerated).length > 0) {
     updated = store.update(documentId, (existing) => {
@@ -99,7 +110,14 @@ export async function POST(req: Request) {
       // The pre-fix report we computed above is no longer current after
       // regenerating sections; the Workspace re-runs validate() afterwards
       // and that call records the post-fix report on its own version.
-      return recordVersion(next, `Auto-fix: ${mode}`, null);
+      return recordVersion(next, `Auto-fix: ${mode}`, null, {
+        metrics: {
+          durationMs,
+          provider: recorder.kind,
+          model: recorder.model,
+          tokenUsage: recorder.totalUsage(),
+        },
+      });
     });
   }
 
@@ -108,6 +126,11 @@ export async function POST(req: Request) {
     draftSections: updated.draftSections,
     regeneratedSectionIds: plan.map((p) => p.outlineId),
     lockedSkipped,
+    promptLog: {
+      kind: `Auto-fix: ${mode}`,
+      timestamp: new Date().toISOString(),
+      exchanges: recorder.exchanges,
+    },
   });
 }
 

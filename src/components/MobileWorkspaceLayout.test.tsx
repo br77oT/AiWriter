@@ -13,13 +13,14 @@ function renderLayout() {
       checks={<div data-testid="pane-checks">Checks content</div>}
       draft={<div data-testid="pane-draft">Draft content</div>}
       assembled={<div data-testid="pane-assembled">Assembled content</div>}
+      stats={<div data-testid="pane-stats">Stats content</div>}
       validation={<div data-testid="pane-validation">Validation content</div>}
     />
   );
 }
 
 describe("MobileWorkspaceLayout", () => {
-  it("renders all six tabs with clear text labels", () => {
+  it("renders all seven tabs with clear text labels", () => {
     renderLayout();
     const tablist = screen.getByRole("tablist", { name: /workspace panes/i });
     expect(within(tablist).getByRole("tab", { name: /^spec$/i })).toBeInTheDocument();
@@ -27,6 +28,7 @@ describe("MobileWorkspaceLayout", () => {
     expect(within(tablist).getByRole("tab", { name: /^checks$/i })).toBeInTheDocument();
     expect(within(tablist).getByRole("tab", { name: /^draft$/i })).toBeInTheDocument();
     expect(within(tablist).getByRole("tab", { name: /^assembled$/i })).toBeInTheDocument();
+    expect(within(tablist).getByRole("tab", { name: /^stats$/i })).toBeInTheDocument();
     expect(within(tablist).getByRole("tab", { name: /^validation$/i })).toBeInTheDocument();
   });
 
