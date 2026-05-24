@@ -170,7 +170,11 @@ function ListEditor({ label, kind, items, readOnly, onChange }: ListEditorProps)
         </ul>
       )}
       {!readOnly && (
-        <div className="flex gap-2">
+        // flex-wrap so the Add button drops to a new line if the input + button
+        // don't fit on one row at the current pane width. `min-w-0` on the
+        // input lets it shrink past its intrinsic content size; `min-w-[8rem]`
+        // keeps it usably wide before the button wraps.
+        <div className="flex flex-wrap gap-2">
           <input
             type="text"
             aria-label={`New ${kind} item`}
@@ -182,7 +186,7 @@ function ListEditor({ label, kind, items, readOnly, onChange }: ListEditorProps)
                 add();
               }
             }}
-            className="flex-1 rounded border border-neutral-300 px-2 py-1 text-sm"
+            className="min-w-[8rem] flex-1 rounded border border-neutral-300 px-2 py-1 text-sm"
             placeholder={kind === "must-include" ? "Add a rule…" : "Add a phrase…"}
           />
           <button
