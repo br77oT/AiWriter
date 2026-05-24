@@ -1,6 +1,7 @@
 "use client";
 
 import type { Document, ValidationReport } from "@/lib/types";
+import { CollapseButton, CollapsedStrip } from "./CollapsiblePane";
 
 export type AutofixMode = "questions" | "structure";
 
@@ -15,6 +16,11 @@ interface ValidationRailProps {
   // width. Used by the mobile layout where the active-tab area owns the
   // width.
   compact?: boolean;
+  // Collapse seam — same pattern as the four left-hand panes. When
+  // `collapsed` is true and `onToggleCollapse` is provided, the rail
+  // renders as a thin vertical strip with an Expand button.
+  collapsed?: boolean;
+  onToggleCollapse?: () => void;
 }
 
 const STRUCTURE_BADGE: Record<string, { glyph: string; tone: string }> = {
@@ -40,7 +46,26 @@ export function ValidationRail({
   lockedSkipped,
   onAutofix,
   compact = false,
+  collapsed = false,
+  onToggleCollapse,
 }: ValidationRailProps) {
+  if (collapsed && onToggleCollapse) {
+    // CollapsedStrip has no intrinsic width — wrap it so the rail still
+    // claims a thin slot in the workspace layout when not in compact (mobile)
+    // mode. Left border keeps the separation from the Draft pane that the
+    // expanded rail already has via its outer aside.
+    return (
+      <div
+        className={
+          compact
+            ? "w-full"
+            : "w-10 shrink-0 border-l border-neutral-200"
+        }
+      >
+        <CollapsedStrip label="Validation" onExpand={onToggleCollapse} />
+      </div>
+    );
+  }
   const headingFor = (outlineId: string) =>
     document.outline.find((s) => s.id === outlineId)?.heading ?? outlineId;
   const questionFor = (checkId: string) =>
@@ -72,12 +97,17 @@ export function ValidationRail({
       }
       aria-labelledby="validation-rail-heading"
     >
-      <h2
-        id="validation-rail-heading"
-        className="text-sm font-semibold uppercase tracking-wide text-neutral-600"
-      >
-        Validation
-      </h2>
+      <div className="flex items-center gap-2">
+        <h2
+          id="validation-rail-heading"
+          className="text-sm font-semibold uppercase tracking-wide text-neutral-600"
+        >
+          Validation
+        </h2>
+        {onToggleCollapse && (
+          <CollapseButton label="Validation" onCollapse={onToggleCollapse} />
+        )}
+      </div>
       <p
         data-testid="validation-rail-description"
         className="mb-3 mt-0.5 text-xs text-neutral-500"

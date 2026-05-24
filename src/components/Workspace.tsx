@@ -60,8 +60,21 @@ type CollapsiblePaneId =
   | "outline"
   | "checks"
   | "assembled"
-  | "stats";
+  | "stats"
+  | "validation";
 const COLLAPSIBLE_PANE_IDS: CollapsiblePaneId[] = [
+  "spec",
+  "outline",
+  "checks",
+  "assembled",
+  "stats",
+  "validation",
+];
+// Ids that should be collapsed by default on first paint. The Validation
+// rail stays expanded — it's the primary surface for reviewing a draft —
+// while everything else opens collapsed to keep the workspace focused on
+// Draft until the user explicitly opens a side pane.
+const DEFAULT_COLLAPSED_PANE_IDS: CollapsiblePaneId[] = [
   "spec",
   "outline",
   "checks",
@@ -113,7 +126,7 @@ export function Workspace({
   // Default to all three side panes collapsed so a fresh workspace opens
   // focused on the Draft. A saved localStorage preference overrides this.
   const [collapsedPanes, setCollapsedPanes] = useState<Set<CollapsiblePaneId>>(
-    () => new Set(COLLAPSIBLE_PANE_IDS)
+    () => new Set(DEFAULT_COLLAPSED_PANE_IDS)
   );
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Guards the scenario autorun pipeline so it fires at most once per mount.
@@ -729,6 +742,10 @@ export function Workspace({
       // Hide the auto-fix footer in reviewer mode by withholding the handler.
       onAutofix={reviewerMode ? undefined : handleAutofix}
       compact={isMobile}
+      collapsed={!isMobile && collapsedPanes.has("validation")}
+      onToggleCollapse={
+        isMobile ? undefined : () => togglePaneCollapsed("validation")
+      }
     />
   );
 
