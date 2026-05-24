@@ -233,6 +233,7 @@ export function TopBar({
               Save as template…
             </button>
           )}
+          {!reviewerMode && <Divider />}
           {!reviewerMode && (
             <button
               type="button"
@@ -266,6 +267,7 @@ export function TopBar({
               {validating ? "Validating…" : "Validate"}
             </button>
           )}
+          <Divider />
           <label className="flex items-center gap-1 text-sm text-neutral-700">
             <input
               type="checkbox"
@@ -278,6 +280,20 @@ export function TopBar({
         </div>
       </div>
     </header>
+  );
+}
+
+// Thin vertical separator between groups of controls. aria-hidden because
+// it carries no semantics — it just visually groups neighbouring buttons.
+function Divider() {
+  return (
+    <span
+      aria-hidden="true"
+      data-testid="top-bar-divider"
+      className="select-none text-neutral-300"
+    >
+      |
+    </span>
   );
 }
 
