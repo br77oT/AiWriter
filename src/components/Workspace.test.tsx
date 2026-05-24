@@ -190,6 +190,19 @@ describe("Workspace shell", () => {
   });
 });
 
+describe("Workspace shell — brand", () => {
+  it("renders the logo, AiWriter name, and one-sentence tagline", () => {
+    const doc = newDocument("doc-brand", "2026-04-29T00:00:00.000Z");
+    render(<Workspace document={doc} />);
+    const brand = screen.getByTestId("app-brand");
+    expect(brand).toBeInTheDocument();
+    expect(screen.getByTestId("app-logo")).toBeInTheDocument();
+    expect(screen.getByTestId("app-tagline")).toHaveTextContent(
+      /turn a spec, outline, and checks into a structured draft/i
+    );
+  });
+});
+
 describe("Workspace document actions (rename + delete)", () => {
   it("clicking the title turns it into an input; Enter saves via PUT", async () => {
     const puts: Array<{ url: string; body: { document: { title?: string } } }> =

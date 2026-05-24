@@ -68,7 +68,16 @@ export function TopBar({
 
   return (
     <header className="flex flex-wrap items-center gap-3 border-b border-neutral-200 bg-white px-4 py-2">
-      <span className="font-semibold tracking-tight">AiWriter</span>
+      <div className="flex items-center gap-2" data-testid="app-brand">
+        <AppLogo />
+        <span className="font-semibold tracking-tight">AiWriter</span>
+        <span
+          data-testid="app-tagline"
+          className="hidden text-xs text-neutral-500 sm:inline"
+        >
+          Turn a spec, outline, and checks into a structured draft.
+        </span>
+      </div>
       <span className="text-neutral-400">·</span>
       <DocumentTitle
         title={documentTitle}
@@ -253,6 +262,42 @@ export function TopBar({
         )}
       </div>
     </header>
+  );
+}
+
+// Inline brand mark — a notched square with a quill-style diagonal stroke.
+// Pure SVG, no asset file. aria-hidden because the "AiWriter" wordmark next
+// to it already carries the brand name for screen readers.
+function AppLogo() {
+  return (
+    <svg
+      data-testid="app-logo"
+      aria-hidden="true"
+      width="22"
+      height="22"
+      viewBox="0 0 22 22"
+      className="shrink-0"
+    >
+      <rect x="1" y="1" width="20" height="20" rx="5" fill="#171717" />
+      {/* Stylized "A" + a small underline accent suggesting a pen stroke. */}
+      <path
+        d="M6.5 16 L11 5 L15.5 16 M8.4 12.5 L13.6 12.5"
+        stroke="#fff"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+      />
+      <line
+        x1="6"
+        y1="18.2"
+        x2="16"
+        y2="18.2"
+        stroke="#fbbf24"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+      />
+    </svg>
   );
 }
 
