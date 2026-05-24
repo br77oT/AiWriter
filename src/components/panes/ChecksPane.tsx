@@ -62,6 +62,13 @@ export function ChecksPane({
           <CollapseButton label="Validation Checks" onCollapse={onToggleCollapse} />
         )}
       </div>
+      <p
+        data-testid="checks-pane-description"
+        className="-mt-2 text-xs text-neutral-500"
+      >
+        Questions the finished draft must answer. Validation grades each one
+        and highlights gaps in the rail on the right.
+      </p>
       <button
         type="button"
         onClick={onLoadTemplate}
@@ -70,13 +77,6 @@ export function ChecksPane({
       >
         Load template
       </button>
-      <p
-        data-testid="checks-pane-description"
-        className="-mt-2 text-xs text-neutral-500"
-      >
-        Questions the finished draft must answer. Validation grades each one
-        and highlights gaps in the rail on the right.
-      </p>
 
       {checks.length === 0 ? (
         <p className="text-sm text-neutral-400">

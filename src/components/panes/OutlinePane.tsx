@@ -105,6 +105,13 @@ export function OutlinePane({
           <CollapseButton label="Document Outline" onCollapse={onToggleCollapse} />
         )}
       </div>
+      <p
+        data-testid="outline-pane-description"
+        className="-mt-2 text-xs text-neutral-500"
+      >
+        The document&apos;s section structure. Add, reorder or remove sections —
+        each one becomes a numbered prompt in the Draft pane.
+      </p>
       <label className="-mt-2 flex items-center gap-1 text-xs text-neutral-600">
         <input
           type="checkbox"
@@ -115,13 +122,6 @@ export function OutlinePane({
         />
         Freeze
       </label>
-      <p
-        data-testid="outline-pane-description"
-        className="-mt-2 text-xs text-neutral-500"
-      >
-        The document&apos;s section structure. Add, reorder or remove sections —
-        each one becomes a numbered prompt in the Draft pane.
-      </p>
 
       {outline.length === 0 ? (
         <p className="text-sm text-neutral-400">
