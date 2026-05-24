@@ -126,7 +126,7 @@ export function WorkspaceGuide({
         type="button"
         onClick={toggle}
         aria-label="Open the getting-started guide"
-        className="fixed bottom-3 left-3 z-20 rounded-full border border-neutral-300 bg-white px-3 py-1.5 text-xs font-medium text-neutral-700 shadow-md hover:bg-neutral-100"
+        className="fixed bottom-[62px] left-3 z-20 rounded-full border border-neutral-300 bg-white px-3 py-1.5 text-xs font-medium text-neutral-700 shadow-md hover:bg-neutral-100"
       >
         ▸ Getting started
       </button>
@@ -136,7 +136,7 @@ export function WorkspaceGuide({
   return (
     <aside
       aria-label="Getting-started guide"
-      className="fixed bottom-3 left-3 z-20 w-60 rounded-lg border border-neutral-300 bg-white shadow-lg"
+      className="fixed bottom-[62px] left-3 z-20 w-60 rounded-lg border border-neutral-300 bg-white shadow-lg"
     >
       <div className="flex items-center justify-between border-b border-neutral-200 px-3 py-2">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-neutral-600">

@@ -92,25 +92,6 @@ export function TopBar({
         <div className="ml-auto flex flex-wrap items-center gap-2">
           {!reviewerMode && (
             <select
-              aria-label="Load fixture"
-              className="rounded border border-dashed border-neutral-300 px-2 py-1 text-sm text-neutral-600"
-              value={fixture}
-              onChange={(e) => {
-                const id = e.target.value;
-                setFixture(id);
-                if (id) onLoadFixture(id);
-              }}
-            >
-              <option value="">Load fixture (dev)…</option>
-              {FIXTURES.map((f) => (
-                <option key={f.id} value={f.id}>
-                  {f.label}
-                </option>
-              ))}
-            </select>
-          )}
-          {!reviewerMode && (
-            <select
               aria-label="Template"
               className="rounded border border-neutral-300 px-2 py-1 text-sm"
               value={selectedTemplateId ?? ""}
@@ -126,21 +107,6 @@ export function TopBar({
                 </option>
               ))}
             </select>
-          )}
-          {!reviewerMode && (
-            <button
-              type="button"
-              onClick={onSaveAsTemplate}
-              disabled={!canSaveAsTemplate}
-              title={
-                canSaveAsTemplate
-                  ? undefined
-                  : "Add at least one outline section, check, or spec field to save as template."
-              }
-              className="rounded border border-neutral-300 bg-white px-3 py-1 text-sm hover:bg-neutral-100 disabled:bg-neutral-100 disabled:text-neutral-400"
-            >
-              Save as template…
-            </button>
           )}
           <button
             type="button"
@@ -171,39 +137,6 @@ export function TopBar({
           {!reviewerMode && (
             <button
               type="button"
-              className="rounded border border-neutral-300 bg-white px-3 py-1 text-sm hover:bg-neutral-100"
-            >
-              Save
-            </button>
-          )}
-          {!reviewerMode && (
-            <button
-              type="button"
-              onClick={onGenerate}
-              disabled={generating || !canGenerate}
-              title={
-                canGenerate
-                  ? undefined
-                  : "Add at least one outline section to generate."
-              }
-              className="rounded border border-neutral-300 bg-white px-3 py-1 text-sm hover:bg-neutral-100 disabled:bg-neutral-100 disabled:text-neutral-400"
-            >
-              {generating ? "Generating…" : "Generate Draft"}
-            </button>
-          )}
-          {!reviewerMode && (
-            <button
-              type="button"
-              onClick={onValidate}
-              disabled={validating}
-              className="rounded border border-neutral-300 bg-white px-3 py-1 text-sm hover:bg-neutral-100 disabled:bg-neutral-100 disabled:text-neutral-400"
-            >
-              {validating ? "Validating…" : "Validate"}
-            </button>
-          )}
-          {!reviewerMode && (
-            <button
-              type="button"
               onClick={onShareScenario}
               title="Create a link that recreates this document and auto-runs Generate + Validate."
               className="rounded border border-neutral-300 bg-white px-3 py-1 text-sm hover:bg-neutral-100"
@@ -229,7 +162,9 @@ export function TopBar({
         </div>
       </div>
 
-      {/* Row 2 — document-scoped controls: title, Delete, Reviewer mode. */}
+      {/* Row 2 — document-scoped: title + Delete on the left; mutating
+          actions (Load fixture, Save as template, Save, Generate Draft,
+          Validate) and the Reviewer-mode toggle on the right. */}
       <div
         data-testid="top-bar-doc-controls"
         className="flex flex-wrap items-center gap-3 border-t border-neutral-100 pt-1"
@@ -263,15 +198,84 @@ export function TopBar({
             Reviewer mode
           </span>
         )}
-        <label className="ml-auto flex items-center gap-1 text-sm text-neutral-700">
-          <input
-            type="checkbox"
-            aria-label="Reviewer mode"
-            checked={reviewerMode}
-            onChange={(e) => onToggleReviewerMode(e.target.checked)}
-          />
-          Reviewer mode
-        </label>
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          {!reviewerMode && (
+            <select
+              aria-label="Load fixture"
+              className="rounded border border-dashed border-neutral-300 px-2 py-1 text-sm text-neutral-600"
+              value={fixture}
+              onChange={(e) => {
+                const id = e.target.value;
+                setFixture(id);
+                if (id) onLoadFixture(id);
+              }}
+            >
+              <option value="">Load fixture (dev)…</option>
+              {FIXTURES.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.label}
+                </option>
+              ))}
+            </select>
+          )}
+          {!reviewerMode && (
+            <button
+              type="button"
+              onClick={onSaveAsTemplate}
+              disabled={!canSaveAsTemplate}
+              title={
+                canSaveAsTemplate
+                  ? undefined
+                  : "Add at least one outline section, check, or spec field to save as template."
+              }
+              className="rounded border border-neutral-300 bg-white px-3 py-1 text-sm hover:bg-neutral-100 disabled:bg-neutral-100 disabled:text-neutral-400"
+            >
+              Save as template…
+            </button>
+          )}
+          {!reviewerMode && (
+            <button
+              type="button"
+              className="rounded border border-neutral-300 bg-white px-3 py-1 text-sm hover:bg-neutral-100"
+            >
+              Save
+            </button>
+          )}
+          {!reviewerMode && (
+            <button
+              type="button"
+              onClick={onGenerate}
+              disabled={generating || !canGenerate}
+              title={
+                canGenerate
+                  ? undefined
+                  : "Add at least one outline section to generate."
+              }
+              className="rounded border border-neutral-300 bg-white px-3 py-1 text-sm hover:bg-neutral-100 disabled:bg-neutral-100 disabled:text-neutral-400"
+            >
+              {generating ? "Generating…" : "Generate Draft"}
+            </button>
+          )}
+          {!reviewerMode && (
+            <button
+              type="button"
+              onClick={onValidate}
+              disabled={validating}
+              className="rounded border border-neutral-300 bg-white px-3 py-1 text-sm hover:bg-neutral-100 disabled:bg-neutral-100 disabled:text-neutral-400"
+            >
+              {validating ? "Validating…" : "Validate"}
+            </button>
+          )}
+          <label className="flex items-center gap-1 text-sm text-neutral-700">
+            <input
+              type="checkbox"
+              aria-label="Reviewer mode"
+              checked={reviewerMode}
+              onChange={(e) => onToggleReviewerMode(e.target.checked)}
+            />
+            Reviewer mode
+          </label>
+        </div>
       </div>
     </header>
   );
