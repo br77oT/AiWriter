@@ -67,7 +67,7 @@ describe("AssembledDraftPane — collapsible chrome", () => {
     );
     // Pane content is replaced by the collapsed strip.
     expect(screen.queryByTestId("assembled-draft-pane")).toBeNull();
-    const expand = screen.getByRole("button", { name: /expand assembled/i });
+    const expand = screen.getByRole("button", { name: /expand generated/i });
     fireEvent.click(expand);
     expect(onToggle).toHaveBeenCalledTimes(1);
   });
@@ -81,7 +81,7 @@ describe("AssembledDraftPane — collapsible chrome", () => {
       />
     );
     fireEvent.click(
-      screen.getByRole("button", { name: /collapse assembled draft/i })
+      screen.getByRole("button", { name: /collapse generated draft/i })
     );
     expect(onToggle).toHaveBeenCalledTimes(1);
   });
@@ -89,7 +89,7 @@ describe("AssembledDraftPane — collapsible chrome", () => {
   it("hides the CollapseButton when onToggleCollapse is omitted (mobile)", () => {
     render(<AssembledDraftPane document={makeDoc()} />);
     expect(
-      screen.queryByRole("button", { name: /collapse assembled draft/i })
+      screen.queryByRole("button", { name: /collapse generated draft/i })
     ).toBeNull();
   });
 });

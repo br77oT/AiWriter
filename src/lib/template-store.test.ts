@@ -18,12 +18,9 @@ describe("TemplateStore", () => {
 
   it("list() returns built-in templates with no user-saved templates present", () => {
     const all = store.list();
-    expect(all.map((t) => t.id)).toEqual([
-      "incident-report",
-      "postmortem",
-      "status-report",
-      "custom",
-    ]);
+    expect(all.map((t) => t.id)).toEqual(
+      BUILT_IN_TEMPLATES.map((t) => t.id)
+    );
   });
 
   it("get() resolves built-in template ids without DB lookup", () => {
@@ -99,12 +96,9 @@ describe("TemplateStore", () => {
 
     const all = store.list();
     // Built-ins first, in their declared order.
-    expect(all.slice(0, BUILT_IN_TEMPLATES.length).map((t) => t.id)).toEqual([
-      "incident-report",
-      "postmortem",
-      "status-report",
-      "custom",
-    ]);
+    expect(all.slice(0, BUILT_IN_TEMPLATES.length).map((t) => t.id)).toEqual(
+      BUILT_IN_TEMPLATES.map((t) => t.id)
+    );
     // Then user templates, newest first.
     const userOnly = all.slice(BUILT_IN_TEMPLATES.length);
     expect(userOnly.map((t) => t.id)).toEqual([b.id, a.id]);

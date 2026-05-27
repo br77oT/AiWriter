@@ -1425,25 +1425,31 @@ describe("Workspace template flow (slice 009)", () => {
     },
   };
 
-  it("selecting a template on an empty document populates Spec/Outline/Checks via PUT (no confirm)", async () => {
+  it("selecting a template POSTs a new document, applies the template via PUT to the new id, and never touches the current doc", async () => {
     const calls: Array<{ method: string; url: string; body?: unknown }> = [];
     installFetch((input, init) => {
       const url = String(input);
       const method = init?.method ?? "GET";
       const body = init?.body ? JSON.parse(String(init.body)) : undefined;
       calls.push({ method, url, body });
-      if (url.endsWith("/api/documents")) return { documents: [] };
+      if (url.endsWith("/api/documents") && method === "GET") {
+        return { documents: [] };
+      }
+      if (url.endsWith("/api/documents") && method === "POST") {
+        return {
+          document: newDocument("doc-new", "2026-04-30T00:01:00.000Z"),
+        };
+      }
       if (url.endsWith("/api/templates")) {
         return { templates: [incidentTemplate] };
       }
       return {};
     });
-    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+    const confirmSpy = vi.spyOn(window, "confirm");
 
     const doc = newDocument("doc-1", "2026-04-30T00:00:00.000Z");
     render(<Workspace document={doc} />);
 
-    // Wait for the templates fetch.
     await waitFor(() =>
       expect(
         calls.some((c) => c.method === "GET" && c.url.endsWith("/api/templates"))
@@ -1454,27 +1460,41 @@ describe("Workspace template flow (slice 009)", () => {
       target: { value: "incident-report" },
     });
 
+    // New document created via POST.
     await waitFor(() =>
       expect(
         calls.some(
-          (c) =>
-            c.method === "PUT" &&
-            c.url.endsWith(`/api/documents/${doc.id}`)
+          (c) => c.method === "POST" && c.url.endsWith("/api/documents")
+        )
+      ).toBe(true)
+    );
+    // Template applied via PUT to the *new* doc id, not the original.
+    await waitFor(() =>
+      expect(
+        calls.some(
+          (c) => c.method === "PUT" && c.url.endsWith("/api/documents/doc-new")
         )
       ).toBe(true)
     );
 
-    // Empty document → no confirm prompt.
+    // The original document is never PUT against — destruction is impossible.
+    expect(
+      calls.some(
+        (c) => c.method === "PUT" && c.url.endsWith(`/api/documents/${doc.id}`)
+      )
+    ).toBe(false);
+    // No confirm prompt — there is nothing to clobber.
     expect(confirmSpy).not.toHaveBeenCalled();
 
     const put = calls.find(
-      (c) => c.method === "PUT" && c.url.endsWith(`/api/documents/${doc.id}`)
+      (c) => c.method === "PUT" && c.url.endsWith("/api/documents/doc-new")
     )!;
     const body = put.body as {
       document: {
         spec: { goal: string };
         outline: Array<{ id: string }>;
         checks: Array<{ id: string }>;
+        templateId: string;
       };
     };
     expect(body.document.spec.goal).toBe("Document the incident.");
@@ -1483,26 +1503,32 @@ describe("Workspace template flow (slice 009)", () => {
       "timeline",
     ]);
     expect(body.document.checks.map((c) => c.id)).toEqual(["c1", "c2"]);
+    expect(body.document.templateId).toBe("incident-report");
 
     confirmSpy.mockRestore();
   });
 
-  it("selecting a template on a non-empty document prompts for confirmation; cancel skips the change", async () => {
+  it("selecting a template on a non-empty document still creates a new doc — the current draft is preserved untouched", async () => {
     const calls: Array<{ method: string; url: string; body?: unknown }> = [];
     installFetch((input, init) => {
       const url = String(input);
       const method = init?.method ?? "GET";
       const body = init?.body ? JSON.parse(String(init.body)) : undefined;
       calls.push({ method, url, body });
-      if (url.endsWith("/api/documents")) return { documents: [] };
+      if (url.endsWith("/api/documents") && method === "GET") {
+        return { documents: [] };
+      }
+      if (url.endsWith("/api/documents") && method === "POST") {
+        return {
+          document: newDocument("doc-new", "2026-04-30T00:01:00.000Z"),
+        };
+      }
       if (url.endsWith("/api/templates")) {
         return { templates: [incidentTemplate] };
       }
       return {};
     });
-    const confirmSpy = vi
-      .spyOn(window, "confirm")
-      .mockReturnValueOnce(false);
+    const confirmSpy = vi.spyOn(window, "confirm");
 
     const doc = {
       ...newDocument("doc-1", "2026-04-30T00:00:00.000Z"),
@@ -1518,20 +1544,25 @@ describe("Workspace template flow (slice 009)", () => {
       ).toBe(true)
     );
 
-    const putCountBefore = calls.filter(
-      (c) => c.method === "PUT" && c.url.endsWith(`/api/documents/${doc.id}`)
-    ).length;
-
     fireEvent.change(screen.getByRole("combobox", { name: /^template$/i }), {
       target: { value: "incident-report" },
     });
 
-    expect(confirmSpy).toHaveBeenCalledTimes(1);
-    // Cancelled → no PUT for the template change.
-    const putCountAfter = calls.filter(
-      (c) => c.method === "PUT" && c.url.endsWith(`/api/documents/${doc.id}`)
-    ).length;
-    expect(putCountAfter).toBe(putCountBefore);
+    // POST creates the new doc; PUT applies the template to it.
+    await waitFor(() =>
+      expect(
+        calls.some(
+          (c) => c.method === "PUT" && c.url.endsWith("/api/documents/doc-new")
+        )
+      ).toBe(true)
+    );
+    // The current doc is never PUT against — no clobber, no confirm.
+    expect(
+      calls.some(
+        (c) => c.method === "PUT" && c.url.endsWith(`/api/documents/${doc.id}`)
+      )
+    ).toBe(false);
+    expect(confirmSpy).not.toHaveBeenCalled();
 
     confirmSpy.mockRestore();
   });
@@ -1626,14 +1657,21 @@ describe("Workspace template flow (slice 009)", () => {
     ).toBeDisabled();
   });
 
-  it("ChecksPane Load template opens the picker; picking a template applies it via PUT", async () => {
+  it("ChecksPane Load template opens the picker; picking a template creates a new document and applies it to that new id", async () => {
     const calls: Array<{ method: string; url: string; body?: unknown }> = [];
     installFetch((input, init) => {
       const url = String(input);
       const method = init?.method ?? "GET";
       const body = init?.body ? JSON.parse(String(init.body)) : undefined;
       calls.push({ method, url, body });
-      if (url.endsWith("/api/documents")) return { documents: [] };
+      if (url.endsWith("/api/documents") && method === "GET") {
+        return { documents: [] };
+      }
+      if (url.endsWith("/api/documents") && method === "POST") {
+        return {
+          document: newDocument("doc-new", "2026-04-30T00:01:00.000Z"),
+        };
+      }
       if (url.endsWith("/api/templates")) {
         return { templates: [incidentTemplate] };
       }
@@ -1667,19 +1705,30 @@ describe("Workspace template flow (slice 009)", () => {
       })
     );
 
+    // POSTs a new document, then PUTs the template into it — the current
+    // document is left untouched.
     await waitFor(() =>
       expect(
         calls.some(
-          (c) =>
-            c.method === "PUT" &&
-            c.url.endsWith(`/api/documents/${doc.id}`)
+          (c) => c.method === "POST" && c.url.endsWith("/api/documents")
         )
       ).toBe(true)
     );
+    await waitFor(() =>
+      expect(
+        calls.some(
+          (c) => c.method === "PUT" && c.url.endsWith("/api/documents/doc-new")
+        )
+      ).toBe(true)
+    );
+    expect(
+      calls.some(
+        (c) => c.method === "PUT" && c.url.endsWith(`/api/documents/${doc.id}`)
+      )
+    ).toBe(false);
 
     const put = calls.find(
-      (c) =>
-        c.method === "PUT" && c.url.endsWith(`/api/documents/${doc.id}`)
+      (c) => c.method === "PUT" && c.url.endsWith("/api/documents/doc-new")
     )!;
     expect(
       (put.body as { document: { templateId: string } }).document.templateId
@@ -2052,7 +2101,7 @@ describe("Workspace responsive layout (slice 013)", () => {
     expect(within(tablist).getByRole("tab", { name: /document outline/i })).toBeInTheDocument();
     expect(within(tablist).getByRole("tab", { name: /validation checks/i })).toBeInTheDocument();
     expect(within(tablist).getByRole("tab", { name: /^draft$/i })).toBeInTheDocument();
-    expect(within(tablist).getByRole("tab", { name: /^assembled$/i })).toBeInTheDocument();
+    expect(within(tablist).getByRole("tab", { name: /^generated$/i })).toBeInTheDocument();
     expect(within(tablist).getByRole("tab", { name: /^stats$/i })).toBeInTheDocument();
     expect(within(tablist).getByRole("tab", { name: /^validation$/i })).toBeInTheDocument();
 

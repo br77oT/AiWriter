@@ -2,10 +2,15 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { FIXTURES } from "@/lib/validation/fixtures";
 import type { Template } from "@/lib/templates";
+import type { Document } from "@/lib/types";
+import { AppMenu } from "./AppMenu";
+import { WorkspaceGuideRow } from "./WorkspaceGuideRow";
 
 interface TopBarProps {
+  // The full document drives the hamburger menu's "Getting started" step
+  // state (done / current / disabled). TopBar itself only uses the title.
+  document: Document;
   documentTitle: string;
   validating: boolean;
   generating: boolean;
@@ -29,9 +34,29 @@ interface TopBarProps {
   onOpenExport: () => void;
   onShareScenario: () => void;
   onToggleReviewerMode: (next: boolean) => void;
+  // Hamburger-menu-only handlers. The TopBar itself doesn't render these as
+  // buttons — they exist in the dropdown as a one-stop menu of app actions.
+  onNewDocument: () => void;
+  onOpenTemplatePicker: () => void;
+  onWriteDraft: () => void;
   // Document-level actions. Omitted in reviewer mode (the buttons hide).
   onRenameDocument?: (nextTitle: string) => void;
   onDeleteDocument?: () => void;
+  // Group-visibility toggles. "Doc options" shows Spec/Outline/Checks;
+  // "Validations" shows the Validation rail + Statistics. Both default to
+  // hidden in Workspace so the layout opens focused on Draft.
+  docOptionsVisible: boolean;
+  validationsVisible: boolean;
+  onToggleDocOptions: () => void;
+  onToggleValidations: () => void;
+  // Tagline link handlers. Each opens the matching pane and triggers a
+  // 👉 hint near it. The TopBar renders the tagline as clickable spans.
+  onOpenSpec: () => void;
+  onOpenOutline: () => void;
+  onOpenStructured: () => void;
+  // "Simplified view": hide both Doc-options and Validations groups in one
+  // click. Disabled when both are already hidden.
+  onSimplifiedView: () => void;
 }
 
 // Top bar shell. In reviewer mode (slice 014), mutating actions are hidden:
@@ -40,6 +65,7 @@ interface TopBarProps {
 // the Reviewer-mode toggle stays visible so an author can flip back. Per
 // PRD user story 39 + issue 014.
 export function TopBar({
+  document,
   documentTitle,
   validating,
   generating,
@@ -61,11 +87,20 @@ export function TopBar({
   onOpenExport,
   onShareScenario,
   onToggleReviewerMode,
+  onNewDocument,
+  onOpenTemplatePicker,
+  onWriteDraft,
   onRenameDocument,
   onDeleteDocument,
+  docOptionsVisible,
+  validationsVisible,
+  onToggleDocOptions,
+  onToggleValidations,
+  onOpenSpec,
+  onOpenOutline,
+  onOpenStructured,
+  onSimplifiedView,
 }: TopBarProps) {
-  const [fixture, setFixture] = useState("");
-
   return (
     <header className="flex flex-col gap-1 border-b border-neutral-200 bg-white px-4 py-2">
       {/* Row 1 — brand on the left, all action buttons on the right. */}
@@ -74,13 +109,47 @@ export function TopBar({
         className="flex flex-wrap items-center gap-3"
       >
         <div className="flex items-center gap-2" data-testid="app-brand">
+          <AppMenu
+            document={document}
+            generating={generating}
+            validating={validating}
+            canGenerate={canGenerate}
+            canExport={canExport}
+            canSaveAsTemplate={canSaveAsTemplate}
+            versionCount={versionCount}
+            hasPromptLog={hasPromptLog}
+            reviewerMode={reviewerMode}
+            onNewDocument={onNewDocument}
+            onOpenTemplatePicker={onOpenTemplatePicker}
+            onWriteDraft={onWriteDraft}
+            onGenerate={onGenerate}
+            onValidate={onValidate}
+            onOpenHistory={onOpenHistory}
+            onOpenPrompts={onOpenPrompts}
+            onShareScenario={onShareScenario}
+            onOpenExport={onOpenExport}
+            onSaveAsTemplate={onSaveAsTemplate}
+            onToggleReviewerMode={onToggleReviewerMode}
+          />
           <AppLogo />
           <span className="font-semibold tracking-tight">AiWriter</span>
           <span
             data-testid="app-tagline"
-            className="hidden text-xs text-neutral-500 sm:inline"
+            className="hidden text-xs text-[color:var(--text-secondary)] sm:inline"
           >
-            Turn a spec, outline, and checks into a structured draft.
+            Turn a{" "}
+            <TaglineLink testid="tagline-spec" onClick={onOpenSpec}>
+              spec
+            </TaglineLink>
+            ,{" "}
+            <TaglineLink testid="tagline-outline" onClick={onOpenOutline}>
+              outline
+            </TaglineLink>
+            , and checks into a{" "}
+            <TaglineLink testid="tagline-structured" onClick={onOpenStructured}>
+              generated draft
+            </TaglineLink>
+            .
           </span>
         </div>
         <Link
@@ -90,24 +159,6 @@ export function TopBar({
           Examples
         </Link>
         <div className="ml-auto flex flex-wrap items-center gap-2">
-          {!reviewerMode && (
-            <select
-              aria-label="Template"
-              className="rounded border border-neutral-300 px-2 py-1 text-sm"
-              value={selectedTemplateId ?? ""}
-              onChange={(e) => {
-                const id = e.target.value;
-                if (id) onSelectTemplate(id);
-              }}
-            >
-              <option value="">Template…</option>
-              {templates.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
-                </option>
-              ))}
-            </select>
-          )}
           <button
             type="button"
             onClick={onOpenHistory}
@@ -137,26 +188,28 @@ export function TopBar({
           {!reviewerMode && (
             <button
               type="button"
+              aria-label="Share link"
               onClick={onShareScenario}
-              title="Create a link that recreates this document and auto-runs Generate + Validate."
-              className="rounded border border-neutral-300 bg-white px-3 py-1 text-sm hover:bg-neutral-100"
+              title="Share link — creates a URL that recreates this document and auto-runs Generate + Validate."
+              className="ds-btn-secondary px-2"
             >
-              Share link
+              <ShareIcon />
             </button>
           )}
           {!reviewerMode && (
             <button
               type="button"
+              aria-label="Export"
               onClick={onOpenExport}
               disabled={!canExport}
               title={
                 canExport
-                  ? undefined
+                  ? "Export — download the structured draft."
                   : "Add at least one section of draft text before exporting."
               }
-              className="rounded border border-neutral-300 bg-white px-3 py-1 text-sm hover:bg-neutral-100 disabled:bg-neutral-100 disabled:text-neutral-400"
+              className="ds-btn-secondary px-2"
             >
-              Export
+              <ExportIcon />
             </button>
           )}
         </div>
@@ -185,54 +238,41 @@ export function TopBar({
               );
               if (ok) onDeleteDocument();
             }}
-            className="rounded border border-red-300 bg-white px-2 py-0.5 text-xs text-red-700 hover:bg-red-50"
+            className="rounded-[var(--radius-control)] border border-[color:var(--danger-bg)] bg-white px-2 py-0.5 text-xs font-medium text-[color:var(--danger-fg)] hover:bg-[color:var(--danger-bg)]"
           >
             Delete
           </button>
         )}
+        <ViewToggle
+          label="Doc options"
+          on={docOptionsVisible}
+          onClick={onToggleDocOptions}
+          title="Show Tone & purpose, Document outline, and Validation checks panes."
+          testid="toggle-doc-options"
+        />
+        <ViewToggle
+          label="Validations"
+          on={validationsVisible}
+          onClick={onToggleValidations}
+          title="Show the Validation rail and Statistics panel."
+          testid="toggle-validations"
+        />
+        <button
+          type="button"
+          data-testid="simplified-view"
+          onClick={onSimplifiedView}
+          disabled={!docOptionsVisible && !validationsVisible}
+          title="Hide Doc options and Validations for a focused Draft + Structured view."
+          className="rounded-[var(--radius-control)] border border-[color:var(--border-subtle)] bg-white px-2.5 py-1 text-xs font-medium text-[color:var(--text-secondary)] hover:bg-[color:var(--surface-sunken)] disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          Simplified view
+        </button>
         {reviewerMode && (
-          <span
-            data-testid="reviewer-mode-badge"
-            className="rounded border border-amber-300 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800"
-          >
+          <span data-testid="reviewer-mode-badge" className="ds-pill ds-pill-warning">
             Reviewer mode
           </span>
         )}
         <div className="ml-auto flex flex-wrap items-center gap-2">
-          {!reviewerMode && (
-            <select
-              aria-label="Load fixture"
-              className="rounded border border-dashed border-neutral-300 px-2 py-1 text-sm text-neutral-600"
-              value={fixture}
-              onChange={(e) => {
-                const id = e.target.value;
-                setFixture(id);
-                if (id) onLoadFixture(id);
-              }}
-            >
-              <option value="">Load fixture (dev)…</option>
-              {FIXTURES.map((f) => (
-                <option key={f.id} value={f.id}>
-                  {f.label}
-                </option>
-              ))}
-            </select>
-          )}
-          {!reviewerMode && (
-            <button
-              type="button"
-              onClick={onSaveAsTemplate}
-              disabled={!canSaveAsTemplate}
-              title={
-                canSaveAsTemplate
-                  ? undefined
-                  : "Add at least one outline section, check, or spec field to save as template."
-              }
-              className="rounded border border-neutral-300 bg-white px-3 py-1 text-sm hover:bg-neutral-100 disabled:bg-neutral-100 disabled:text-neutral-400"
-            >
-              Save as template…
-            </button>
-          )}
           {!reviewerMode && <Divider />}
           {!reviewerMode && (
             <button
@@ -250,9 +290,9 @@ export function TopBar({
               title={
                 canGenerate
                   ? undefined
-                  : "Add at least one outline section to generate."
+                  : "Add at least one outline section, and give every required section a heading, before generating."
               }
-              className="rounded border border-neutral-300 bg-white px-3 py-1 text-sm hover:bg-neutral-100 disabled:bg-neutral-100 disabled:text-neutral-400"
+              className="ds-btn-primary"
             >
               {generating ? "Generating…" : "Generate Draft"}
             </button>
@@ -262,7 +302,7 @@ export function TopBar({
               type="button"
               onClick={onValidate}
               disabled={validating}
-              className="rounded border border-neutral-300 bg-white px-3 py-1 text-sm hover:bg-neutral-100 disabled:bg-neutral-100 disabled:text-neutral-400"
+              className="ds-btn-soft"
             >
               {validating ? "Validating…" : "Validate"}
             </button>
@@ -279,7 +319,156 @@ export function TopBar({
           </label>
         </div>
       </div>
+
+      {/* Row 3 — horizontal guide. The same five stages as the bottom-left
+          WorkspaceGuide mini-map, surfaced inline so the user can jump
+          between stages without opening the mini-map. Hidden in reviewer
+          mode (reviewers don't author through these stages). */}
+      {!reviewerMode && (
+        <div className="flex items-center border-t border-neutral-100 pt-1.5">
+          <WorkspaceGuideRow
+            document={document}
+            generating={generating}
+            validating={validating}
+            canGenerate={canGenerate}
+            onNewDocument={onNewDocument}
+            onSelectTemplate={onOpenTemplatePicker}
+            onWriteDraft={onWriteDraft}
+            onGenerate={onGenerate}
+            onValidate={onValidate}
+          />
+        </div>
+      )}
     </header>
+  );
+}
+
+// Clickable word inside the brand tagline that opens the matching pane.
+// Styled as a blue underline link so it's obvious the words are interactive.
+function TaglineLink({
+  children,
+  onClick,
+  testid,
+}: {
+  children: React.ReactNode;
+  onClick: () => void;
+  testid: string;
+}) {
+  return (
+    <button
+      type="button"
+      data-testid={testid}
+      onClick={onClick}
+      className="font-medium text-[color:var(--primary)] underline-offset-2 hover:underline"
+    >
+      {children}
+    </button>
+  );
+}
+
+// Compact on/off button for show-hide-group toggles. The leading eye /
+// eye-slash icon makes the current visibility readable at a glance; the
+// solid vs. outlined fill reinforces it for users who can't see the icon
+// clearly (small UI, low contrast, etc.).
+function ViewToggle({
+  label,
+  on,
+  onClick,
+  title,
+  testid,
+}: {
+  label: string;
+  on: boolean;
+  onClick: () => void;
+  title: string;
+  testid: string;
+}) {
+  return (
+    <button
+      type="button"
+      data-testid={testid}
+      aria-pressed={on}
+      onClick={onClick}
+      title={title}
+      className={
+        "inline-flex items-center gap-1 rounded-[var(--radius-control)] border px-2.5 py-1 text-xs font-medium transition-colors " +
+        (on
+          ? "border-transparent bg-[color:var(--primary-soft)] text-[color:var(--primary)] hover:bg-[#c7dcfd]"
+          : "border-[color:var(--border-subtle)] bg-white text-[color:var(--text-secondary)] hover:bg-[color:var(--surface-sunken)]")
+      }
+    >
+      <EyeIcon hidden={!on} />
+      {label}
+    </button>
+  );
+}
+
+// Share icon — three dots connected by lines (web "share" glyph). Sized to
+// match the surrounding sm text so it sits cleanly inside the secondary
+// button frame.
+function ShareIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <circle cx="18" cy="5" r="3" />
+      <circle cx="6" cy="12" r="3" />
+      <circle cx="18" cy="19" r="3" />
+      <line x1="8.6" y1="13.5" x2="15.4" y2="17.5" />
+      <line x1="15.4" y1="6.5" x2="8.6" y2="10.5" />
+    </svg>
+  );
+}
+
+// Export / download icon — tray with a down-arrow falling into it. Used on
+// the Export button.
+function ExportIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+      <polyline points="7 10 12 15 17 10" />
+      <line x1="12" y1="15" x2="12" y2="3" />
+    </svg>
+  );
+}
+
+// Eye / eye-slash icon. Pure SVG, sized to match the surrounding xs text.
+// `hidden=true` adds a diagonal slash through the eye to signal "off".
+function EyeIcon({ hidden }: { hidden: boolean }) {
+  return (
+    <svg
+      aria-hidden="true"
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
+      <circle cx="12" cy="12" r="3" />
+      {hidden && <line x1="4" y1="20" x2="20" y2="4" />}
+    </svg>
   );
 }
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# start-local.sh — boot AiWriter in local-LLM mode.
+# start-dev-show-ui.sh — boot AiWriter in local-LLM mode.
 #
 # Starts (a) the ClaudeInBrowserSocket WebSocket server that fronts
 # `claude -p`, and (b) AiWriter's Next.js dev server with LLM_PROVIDER=local
@@ -14,11 +14,9 @@ set -euo pipefail
 
 AIWRITER_PORT=5802
 WS_PORT="${CLAUDE_SOCKET_PORT:-8787}"
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WS_REPO="${CLAUDE_SOCKET_REPO:-$(cd "$ROOT/../../Mini/ClaudeInBrowserSocket" && pwd)}"
 
-AIWRITER_PID_FILE="$ROOT/.aiwriter.pid"
-AIWRITER_LOG_FILE="$ROOT/.aiwriter.log"
 WS_PID_FILE="$ROOT/.aiwriter-ws.pid"
 WS_LOG_FILE="$ROOT/.aiwriter-ws.log"
 
@@ -54,21 +52,24 @@ else
   echo "WS server started (pid $(cat "$WS_PID_FILE")). Logs: $WS_LOG_FILE"
 fi
 
-# Start AiWriter (skip if already up).
-if [[ -f "$AIWRITER_PID_FILE" ]] && kill -0 "$(cat "$AIWRITER_PID_FILE")" 2>/dev/null; then
-  echo "AiWriter already running (pid $(cat "$AIWRITER_PID_FILE")) on port $AIWRITER_PORT"
-  exit 0
-fi
-if lsof -iTCP:"$AIWRITER_PORT" -sTCP:LISTEN >/dev/null 2>&1; then
-  echo "Port $AIWRITER_PORT is already in use. Run scripts/stop-local.sh first." >&2
-  exit 1
-fi
+# Start AiWriter via scripts/start.sh, passing local-LLM env through.
+export LLM_PROVIDER=local
+export AIWRITER_LOCAL_LLM_URL="ws://127.0.0.1:$WS_PORT"
+"$ROOT/scripts/start.sh"
 
-echo "Starting AiWriter on port $AIWRITER_PORT (LLM_PROVIDER=local)..."
-LLM_PROVIDER=local \
-AIWRITER_LOCAL_LLM_URL="ws://127.0.0.1:$WS_PORT" \
-nohup npx next dev -p "$AIWRITER_PORT" >"$AIWRITER_LOG_FILE" 2>&1 &
-echo $! >"$AIWRITER_PID_FILE"
+URL="http://localhost:$AIWRITER_PORT"
 
-echo "AiWriter started (pid $(cat "$AIWRITER_PID_FILE")). Logs: $AIWRITER_LOG_FILE"
-echo "Open: http://localhost:$AIWRITER_PORT"
+# Wait for the dev server to start serving before opening the browser.
+for _ in $(seq 1 40); do
+  curl -sf -o /dev/null "$URL" && break
+  sleep 0.5
+done
+
+echo "Opening $URL..."
+if command -v xdg-open >/dev/null 2>&1; then
+  xdg-open "$URL" >/dev/null 2>&1 &
+elif command -v open >/dev/null 2>&1; then
+  open "$URL" &
+else
+  echo "(No xdg-open/open found — open $URL manually.)"
+fi

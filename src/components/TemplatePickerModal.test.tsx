@@ -99,6 +99,66 @@ describe("TemplatePickerModal", () => {
     expect(screen.getByRole("button", { name: /^cancel$/i })).toBeDisabled();
   });
 
+  it("numbers each row 1..N in order, matching the templates array", () => {
+    render(
+      <TemplatePickerModal
+        templates={sampleTemplates}
+        busy={false}
+        onCancel={() => {}}
+        onPick={() => {}}
+      />
+    );
+    // Each list item has a numbered chip as its first visual element.
+    for (let i = 0; i < sampleTemplates.length; i++) {
+      expect(screen.getByText(String(i + 1))).toBeInTheDocument();
+    }
+  });
+
+  it("shows the template's goal as the description and audience as 'For: …'", () => {
+    const withSpec: Template = {
+      id: "business-plan",
+      name: "Business Plan",
+      builtIn: true,
+      bundle: {
+        spec: {
+          goal: "Lay out the business clearly.",
+          tone: "confident",
+          audience: "investors and partners",
+          mustInclude: [],
+          mustAvoid: [],
+        },
+        outline: [],
+        checks: [],
+      },
+    };
+    render(
+      <TemplatePickerModal
+        templates={[withSpec]}
+        busy={false}
+        onCancel={() => {}}
+        onPick={() => {}}
+      />
+    );
+    expect(screen.getByText(/Lay out the business clearly\./)).toBeInTheDocument();
+    expect(
+      screen.getByText(/For: investors and partners/)
+    ).toBeInTheDocument();
+  });
+
+  it("hides the description + audience lines when those Spec fields are empty", () => {
+    // Mirrors a user-saved template the user never filled spec fields on, and
+    // the Custom (blank) built-in. The row should collapse to just the name.
+    render(
+      <TemplatePickerModal
+        templates={sampleTemplates}
+        busy={false}
+        onCancel={() => {}}
+        onPick={() => {}}
+      />
+    );
+    expect(screen.queryByText(/^For:/)).toBeNull();
+  });
+
   it("renders an empty hint when no templates exist", () => {
     render(
       <TemplatePickerModal

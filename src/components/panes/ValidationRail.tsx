@@ -32,18 +32,18 @@ interface ValidationRailProps {
 }
 
 const STRUCTURE_BADGE: Record<string, { glyph: string; tone: string }> = {
-  present: { glyph: "✓", tone: "text-emerald-700" },
-  thin: { glyph: "~", tone: "text-amber-700" },
-  missing: { glyph: "✗", tone: "text-red-700" },
+  present: { glyph: "✓", tone: "text-[color:var(--success-fg)]" },
+  thin: { glyph: "~", tone: "text-[color:var(--warning-fg)]" },
+  missing: { glyph: "✗", tone: "text-[color:var(--danger-fg)]" },
 };
 
-const QUESTION_BADGE: Record<string, { label: string; tone: string }> = {
-  answered: { label: "Answered", tone: "text-emerald-700" },
-  partial: { label: "Partial", tone: "text-amber-700" },
-  missing: { label: "Missing", tone: "text-red-700" },
+const QUESTION_BADGE: Record<string, { label: string; pillClass: string }> = {
+  answered: { label: "Answered", pillClass: "ds-pill ds-pill-success" },
+  partial: { label: "Partial", pillClass: "ds-pill ds-pill-warning" },
+  missing: { label: "Missing", pillClass: "ds-pill ds-pill-danger" },
   // Not a content verdict — the check never ran. Neutral tone keeps it from
   // reading as a red "your draft failed" result.
-  error: { label: "Not evaluated", tone: "text-neutral-500" },
+  error: { label: "Not evaluated", pillClass: "ds-pill ds-pill-neutral" },
 };
 
 export function ValidationRail({
@@ -99,18 +99,15 @@ export function ValidationRail({
   return (
     <aside
       className={
-        "flex h-full flex-col overflow-y-auto bg-white p-3 text-sm " +
+        "flex h-full flex-col overflow-y-auto bg-white p-4 text-sm " +
         (compact
           ? "w-full"
-          : "w-80 shrink-0 border-l border-neutral-200")
+          : "w-80 shrink-0 border-l border-[color:var(--border-subtle)]")
       }
       aria-labelledby="validation-rail-heading"
     >
       <div className="flex items-center gap-2">
-        <h2
-          id="validation-rail-heading"
-          className="text-sm font-semibold uppercase tracking-wide text-neutral-600"
-        >
+        <h2 id="validation-rail-heading" className="ds-pane-heading">
           Validation
         </h2>
         {onToggleCollapse && (
@@ -119,7 +116,7 @@ export function ValidationRail({
       </div>
       <p
         data-testid="validation-rail-description"
-        className="mb-3 mt-0.5 text-xs text-neutral-500"
+        className="mb-3 mt-0.5 text-xs text-[color:var(--text-tertiary)]"
       >
         How well the current draft meets the spec — each section&apos;s
         structural status plus answers to your checks.
@@ -133,12 +130,12 @@ export function ValidationRail({
       {status === "running" && (
         <div
           data-testid="validation-status"
-          className="space-y-1 rounded border border-neutral-200 bg-neutral-50 p-2"
+          className="ds-list-item space-y-1"
         >
-          <p className="flex items-center gap-2 text-neutral-700">
+          <p className="flex items-center gap-2 text-[color:var(--text-secondary)]">
             <span
               aria-hidden="true"
-              className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-neutral-300 border-t-neutral-700"
+              className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-[color:var(--border-subtle)] border-t-[color:var(--primary)]"
             />
             {progress
               ? `Evaluating check ${progress.index + 1} of ${progress.total}`
@@ -149,7 +146,7 @@ export function ValidationRail({
           {progress && (
             <p
               data-testid="validation-progress-question"
-              className="truncate pl-5 text-xs italic text-neutral-500"
+              className="truncate pl-5 text-xs italic text-[color:var(--text-tertiary)]"
               title={progress.question}
             >
               “{progress.question}”
@@ -158,13 +155,16 @@ export function ValidationRail({
         </div>
       )}
       {status === "error" && (
-        <p className="text-red-700" data-testid="validation-status">
+        <p
+          className="text-[color:var(--danger-fg)]"
+          data-testid="validation-status"
+        >
           Validation failed. Try again.
         </p>
       )}
 
       {!report && status === "idle" && (
-        <p className="text-neutral-400">
+        <p className="text-[color:var(--text-tertiary)]">
           Click <span className="font-medium">Validate</span> to run a check.
         </p>
       )}
@@ -172,11 +172,11 @@ export function ValidationRail({
       {report && (
         <>
           <section className="mb-4">
-            <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-neutral-500">
-              Structure
-            </h3>
+            <h3 className="ds-pane-heading mb-1">Structure</h3>
             {report.structure.length === 0 ? (
-              <p className="text-neutral-400">No outline sections defined.</p>
+              <p className="text-[color:var(--text-tertiary)]">
+                No outline sections defined.
+              </p>
             ) : (
               <ul className="space-y-1">
                 {report.structure.map((s) => {
@@ -190,11 +190,11 @@ export function ValidationRail({
                         {badge.glyph}
                       </span>
                       <div className="flex-1">
-                        <div className="text-neutral-800">
+                        <div className="text-[color:var(--text-primary)]">
                           {headingFor(s.outlineId)}
                         </div>
                         {s.note && (
-                          <div className="text-xs text-neutral-500">
+                          <div className="text-xs text-[color:var(--text-tertiary)]">
                             {s.note}
                           </div>
                         )}
@@ -207,12 +207,10 @@ export function ValidationRail({
           </section>
 
           <section>
-            <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-neutral-500">
-              Document Checks
-            </h3>
+            <h3 className="ds-pane-heading mb-1">Document Checks</h3>
             {erroredChecks > 0 && (
               <p
-                className="mb-2 rounded border border-amber-300 bg-amber-50 p-2 text-xs text-amber-800"
+                className="mb-2 rounded-[var(--radius-control)] border border-[color:var(--warning-bg)] bg-[color:var(--warning-bg)]/40 p-2 text-xs text-[color:var(--warning-fg)]"
                 data-testid="evaluator-error-notice"
               >
                 {erroredChecks === report.questions.length
@@ -227,35 +225,38 @@ export function ValidationRail({
               </p>
             )}
             {report.questions.length === 0 ? (
-              <p className="text-neutral-400">No checks defined.</p>
+              <p className="text-[color:var(--text-tertiary)]">
+                No checks defined.
+              </p>
             ) : (
               <ol className="space-y-3">
                 {report.questions.map((q, idx) => {
                   const badge = QUESTION_BADGE[q.status];
                   return (
-                    <li key={q.checkId} className="border-l-2 border-neutral-200 pl-2">
+                    <li
+                      key={q.checkId}
+                      className="border-l-2 border-[color:var(--border-subtle)] pl-2"
+                    >
                       <div className="flex items-baseline justify-between gap-2">
-                        <span className="min-w-0 flex-1 text-neutral-800">
+                        <span className="min-w-0 flex-1 text-[color:var(--text-primary)]">
                           <span
                             data-testid={`question-number-${q.checkId}`}
-                            className="mr-1 select-none text-xs text-neutral-400"
+                            className="mr-1 select-none text-xs text-[color:var(--text-tertiary)]"
                           >
                             {idx + 1}.
                           </span>
                           {questionFor(q.checkId)}
                         </span>
-                        <span className={`text-xs font-medium ${badge.tone}`}>
-                          {badge.label}
-                        </span>
+                        <span className={badge.pillClass}>{badge.label}</span>
                       </div>
                       {q.evidence && (
-                        <div className="mt-1 text-xs text-neutral-600">
+                        <div className="mt-1 text-xs text-[color:var(--text-secondary)]">
                           <span className="font-semibold">Evidence: </span>
                           <span className="italic">“{q.evidence}”</span>
                         </div>
                       )}
                       {q.suggestion && (
-                        <div className="mt-1 text-xs text-neutral-600">
+                        <div className="mt-1 text-xs text-[color:var(--text-secondary)]">
                           <span className="font-semibold">Suggestion: </span>
                           {q.suggestion}
                         </div>
@@ -269,7 +270,7 @@ export function ValidationRail({
 
           {lockedSkipped && lockedSkipped.length > 0 && (
             <p
-              className="mt-4 rounded border border-amber-300 bg-amber-50 p-2 text-xs text-amber-800"
+              className="mt-4 rounded-[var(--radius-control)] border border-[color:var(--warning-bg)] bg-[color:var(--warning-bg)]/40 p-2 text-xs text-[color:var(--warning-fg)]"
               data-testid="autofix-locked-notice"
             >
               Skipped {lockedSkipped.length} locked section
@@ -280,12 +281,12 @@ export function ValidationRail({
           )}
 
           {onAutofix && (
-            <div className="mt-4 flex flex-col gap-2 border-t border-neutral-200 pt-3">
+            <div className="mt-4 flex flex-col gap-2 border-t border-[color:var(--border-subtle)] pt-3">
               <button
                 type="button"
                 disabled={autofixBusy || failingChecks === 0}
                 onClick={() => onAutofix("questions")}
-                className="rounded border border-neutral-300 bg-white px-3 py-1 text-sm hover:bg-neutral-100 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-400"
+                className="ds-btn-soft"
               >
                 Auto-fix missing items
               </button>
@@ -293,12 +294,15 @@ export function ValidationRail({
                 type="button"
                 disabled={autofixBusy || failingStructure === 0}
                 onClick={() => onAutofix("structure")}
-                className="rounded border border-neutral-300 bg-white px-3 py-1 text-sm hover:bg-neutral-100 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-400"
+                className="ds-btn-soft"
               >
                 Regenerate only failed sections
               </button>
               {autofixBusy && (
-                <p className="text-xs text-neutral-500" data-testid="autofix-status">
+                <p
+                  className="text-xs text-[color:var(--text-tertiary)]"
+                  data-testid="autofix-status"
+                >
                   Regenerating…
                 </p>
               )}
@@ -317,7 +321,7 @@ function CoverageBadge({
 }) {
   return (
     <span
-      className="rounded bg-neutral-900 px-2 py-0.5 font-mono text-xs text-white"
+      className="inline-flex items-center rounded-full bg-[color:var(--primary)] px-3 py-1 font-mono text-xs text-white"
       data-testid="coverage-score"
       title="Checks answered / Sections present"
     >

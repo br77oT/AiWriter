@@ -4,7 +4,7 @@ import {
   setDefaultTemplateStoreForTesting,
 } from "@/lib/template-store";
 import { GET, POST } from "./route";
-import type { Template } from "@/lib/templates";
+import { BUILT_IN_TEMPLATES, type Template } from "@/lib/templates";
 
 describe("/api/templates route handlers", () => {
   beforeEach(() => {
@@ -17,16 +17,13 @@ describe("/api/templates route handlers", () => {
     setDefaultTemplateStoreForTesting(null);
   });
 
-  it("GET returns the four built-in templates when no user templates exist", async () => {
+  it("GET returns the built-in templates when no user templates exist", async () => {
     const res = await GET();
     expect(res.status).toBe(200);
     const { templates } = (await res.json()) as { templates: Template[] };
-    expect(templates.map((t) => t.id)).toEqual([
-      "incident-report",
-      "postmortem",
-      "status-report",
-      "custom",
-    ]);
+    expect(templates.map((t) => t.id)).toEqual(
+      BUILT_IN_TEMPLATES.map((t) => t.id)
+    );
     expect(templates.every((t) => t.builtIn)).toBe(true);
   });
 
@@ -65,9 +62,9 @@ describe("/api/templates route handlers", () => {
 
     const list = await GET();
     const { templates } = (await list.json()) as { templates: Template[] };
-    // Built-ins (4) + the one we just saved.
-    expect(templates).toHaveLength(5);
-    expect(templates[4].id).toBe(template.id);
+    // All built-ins, then the one we just saved.
+    expect(templates).toHaveLength(BUILT_IN_TEMPLATES.length + 1);
+    expect(templates[BUILT_IN_TEMPLATES.length].id).toBe(template.id);
   });
 
   it("POST round-trips spec/outline/checks bit-for-bit", async () => {

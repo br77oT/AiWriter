@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type {
   Check,
@@ -26,7 +26,10 @@ import { PromptInspectorPanel } from "./PromptInspectorPanel";
 import { ExportPopover } from "./ExportPopover";
 import { LlmKeyWarning } from "./LlmKeyWarning";
 import { ScenarioShareModal } from "./ScenarioShareModal";
-import { MobileWorkspaceLayout } from "./MobileWorkspaceLayout";
+import {
+  MobileWorkspaceLayout,
+  type MobilePaneId,
+} from "./MobileWorkspaceLayout";
 import { WorkspaceGuide } from "./WorkspaceGuide";
 import { useIsMobile } from "@/lib/useIsMobile";
 import { useReviewerMode } from "@/lib/useReviewerMode";
@@ -39,6 +42,7 @@ import {
   isDocumentEmpty,
   type Template,
 } from "@/lib/templates";
+import { incompleteRequiredSectionIds } from "@/lib/outline";
 
 interface WorkspaceProps {
   document: Document;
@@ -49,6 +53,7 @@ interface WorkspaceProps {
 
 const LAST_OPENED_KEY = "aiwriter:lastOpenedDocId";
 const COLLAPSED_PANES_KEY = "aiwriter:collapsedPanes";
+const PANEL_VISIBILITY_KEY = "aiwriter:panelVisibility";
 const REVALIDATE_DEBOUNCE_MS = 600;
 
 // Panes the user can collapse to declutter the workspace. Draft and the
@@ -132,6 +137,24 @@ export function Workspace({
   const [collapsedPanes, setCollapsedPanes] = useState<Set<CollapsiblePaneId>>(
     () => new Set(DEFAULT_COLLAPSED_PANE_IDS)
   );
+  // Group-level visibility toggles (TopBar buttons). Both default to hidden
+  // so the workspace opens focused on the Draft; the toggles in the TopBar
+  // reveal Spec/Outline/Checks ("Doc options") and ValidationRail/Stats
+  // ("Validations"). Persisted to localStorage.
+  const [docOptionsVisible, setDocOptionsVisible] = useState(false);
+  const [validationsVisible, setValidationsVisible] = useState(false);
+  // Imperative tab-switch request for MobileWorkspaceLayout: a target pane id
+  // plus a nonce that increments on every request. A counter (not just an id)
+  // lets repeat requests to the same tab still re-trigger the switch.
+  const [mobileNavRequest, setMobileNavRequest] = useState<{
+    pane: MobilePaneId;
+    nonce: number;
+  } | null>(null);
+  // Which pane to render the floating 👉 pointer next to. Set when a TopBar
+  // tagline link is clicked; auto-cleared by a useEffect after 3s.
+  const [paneHighlight, setPaneHighlight] = useState<
+    "spec" | "outline" | "assembled" | null
+  >(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Guards the scenario autorun pipeline so it fires at most once per mount.
   const autorunRef = useRef(false);
@@ -187,6 +210,152 @@ export function Workspace({
       // Corrupt / unavailable storage — keep the all-collapsed default.
     }
   }, []);
+
+  // Hydrate the two group-visibility toggles from localStorage on mount.
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(PANEL_VISIBILITY_KEY);
+      if (raw === null) return;
+      const parsed = JSON.parse(raw) as {
+        docOptions?: boolean;
+        validations?: boolean;
+      };
+      if (typeof parsed.docOptions === "boolean") {
+        setDocOptionsVisible(parsed.docOptions);
+      }
+      if (typeof parsed.validations === "boolean") {
+        setValidationsVisible(parsed.validations);
+      }
+    } catch {
+      // Corrupt / unavailable storage — keep the hidden defaults.
+    }
+  }, []);
+
+  const persistPanelVisibility = useCallback(
+    (next: { docOptions: boolean; validations: boolean }) => {
+      try {
+        window.localStorage.setItem(PANEL_VISIBILITY_KEY, JSON.stringify(next));
+      } catch {
+        // Best-effort persistence; in-memory state remains correct.
+      }
+    },
+    []
+  );
+
+  const handleToggleDocOptions = useCallback(() => {
+    setDocOptionsVisible((prev) => {
+      const next = !prev;
+      persistPanelVisibility({
+        docOptions: next,
+        validations: validationsVisible,
+      });
+      return next;
+    });
+  }, [persistPanelVisibility, validationsVisible]);
+
+  const handleToggleValidations = useCallback(() => {
+    setValidationsVisible((prev) => {
+      const next = !prev;
+      persistPanelVisibility({
+        docOptions: docOptionsVisible,
+        validations: next,
+      });
+      return next;
+    });
+  }, [persistPanelVisibility, docOptionsVisible]);
+
+  const requestMobileNav = useCallback((pane: MobilePaneId) => {
+    setMobileNavRequest((prev) => ({ pane, nonce: (prev?.nonce ?? 0) + 1 }));
+  }, []);
+
+  // Auto-clear the pointer hint a few seconds after it's set so the 👉
+  // doesn't linger forever.
+  useEffect(() => {
+    if (paneHighlight === null) return;
+    const t = setTimeout(() => setPaneHighlight(null), 3000);
+    return () => clearTimeout(t);
+  }, [paneHighlight]);
+
+  // Expand a previously-collapsed pane (no-op if it isn't collapsed) and
+  // persist. Shared by the cross-pane navigation handlers below.
+  const expandPane = useCallback((id: CollapsiblePaneId) => {
+    setCollapsedPanes((prev) => {
+      if (!prev.has(id)) return prev;
+      const next = new Set(prev);
+      next.delete(id);
+      try {
+        window.localStorage.setItem(
+          COLLAPSED_PANES_KEY,
+          JSON.stringify([...next])
+        );
+      } catch {
+        // Best-effort persistence.
+      }
+      return next;
+    });
+  }, []);
+
+  // "Edit prompts" button in the Draft pane: reveal the Doc-options group
+  // (so Outline becomes visible), expand the Outline pane if collapsed, then
+  // focus the first heading input. On mobile, also flip the active tab.
+  const handleEditPrompts = useCallback(() => {
+    setDocOptionsVisible(true);
+    persistPanelVisibility({ docOptions: true, validations: validationsVisible });
+    expandPane("outline");
+    requestMobileNav("outline");
+    // Wait for the layout to render the now-visible pane before focusing.
+    setTimeout(() => {
+      const target = window.document.querySelector<HTMLInputElement>(
+        'input[aria-label^="Heading for section"]'
+      );
+      target?.focus();
+      target?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 50);
+  }, [persistPanelVisibility, validationsVisible, expandPane, requestMobileNav]);
+
+  // "Check validations" button in the Assembled Draft pane: reveal the
+  // Validations group (rail + Statistics) and expand both if previously
+  // collapsed. On mobile, also flip the active tab to the Validation rail.
+  const handleCheckValidations = useCallback(() => {
+    setValidationsVisible(true);
+    persistPanelVisibility({ docOptions: docOptionsVisible, validations: true });
+    expandPane("validation");
+    expandPane("stats");
+    requestMobileNav("validation");
+  }, [persistPanelVisibility, docOptionsVisible, expandPane, requestMobileNav]);
+
+  // Tagline "spec" / "outline" / "structured draft" link handlers. Each:
+  // reveals the right group (if hidden), expands the pane, switches the
+  // mobile tab, and sets the 👉 hint near that pane.
+  const handleOpenSpec = useCallback(() => {
+    setDocOptionsVisible(true);
+    persistPanelVisibility({ docOptions: true, validations: validationsVisible });
+    expandPane("spec");
+    requestMobileNav("spec");
+    setPaneHighlight("spec");
+  }, [persistPanelVisibility, validationsVisible, expandPane, requestMobileNav]);
+
+  const handleOpenOutline = useCallback(() => {
+    setDocOptionsVisible(true);
+    persistPanelVisibility({ docOptions: true, validations: validationsVisible });
+    expandPane("outline");
+    requestMobileNav("outline");
+    setPaneHighlight("outline");
+  }, [persistPanelVisibility, validationsVisible, expandPane, requestMobileNav]);
+
+  const handleOpenStructured = useCallback(() => {
+    expandPane("assembled");
+    requestMobileNav("assembled");
+    setPaneHighlight("assembled");
+  }, [expandPane, requestMobileNav]);
+
+  // "Simplified view" button: hide both Doc-options and Validations groups
+  // in one click so the user sees just Draft + Structured draft. Persisted.
+  const handleSimplifiedView = useCallback(() => {
+    setDocOptionsVisible(false);
+    setValidationsVisible(false);
+    persistPanelVisibility({ docOptions: false, validations: false });
+  }, [persistPanelVisibility]);
 
   const togglePaneCollapsed = useCallback((id: CollapsiblePaneId) => {
     setCollapsedPanes((prev) => {
@@ -530,28 +699,47 @@ export function Workspace({
     [document.id, runValidate]
   );
 
-  // Picks a template from the dropdown / sidebar / picker modal. Confirms
-  // before clobbering a non-empty document, per PRD §"Template Library":
-  // "Selecting on an existing document is gated behind a confirm prompt to
-  // avoid clobbering."
+  // Picks a template from the dropdown / sidebar / picker modal. Creates a
+  // *new* document with the template applied, then navigates to it. Previously
+  // this overwrote the current document with a confirm prompt; users found
+  // that surprising — "Load template" reads as "use this template", not
+  // "throw away my draft." The current document stays untouched in the
+  // sidebar's Recent drafts list.
   const handleSelectTemplate = useCallback(
-    (templateId: string) => {
+    async (templateId: string) => {
       const template = templates.find((t) => t.id === templateId);
       if (!template) return;
-      if (!isDocumentEmpty(document)) {
-        const ok = window.confirm(
-          `Loading "${template.name}" will replace the current Spec, Outline, and Checks. Continue?`
-        );
-        if (!ok) return;
+      try {
+        const created = await fetch("/api/documents", { method: "POST" });
+        if (!created.ok) return;
+        const { document: newDoc } = (await created.json()) as {
+          document: Document;
+        };
+        const next = applyTemplate(newDoc, template);
+        await fetch(`/api/documents/${newDoc.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            document: {
+              spec: next.spec,
+              outline: next.outline,
+              checks: next.checks,
+              draftSections: next.draftSections,
+              lockedSectionIds: next.lockedSectionIds,
+              outlineFrozen: next.outlineFrozen,
+              templateId: next.templateId,
+            },
+          }),
+        });
+        setPickerOpen(false);
+        router.push(`/documents/${newDoc.id}`);
+      } catch {
+        // Network blip — leave the user on the current doc. The picker can
+        // be reopened to retry; no destructive change happened to the
+        // existing document.
       }
-      const next = applyTemplate(document, template);
-      void persistDocument(next);
-      setPickerOpen(false);
-      // Outline + checks changed → revalidate so the rail reflects the new
-      // structural + question coverage immediately.
-      scheduleRevalidate();
     },
-    [document, persistDocument, scheduleRevalidate, templates]
+    [router, templates]
   );
 
   const handleSaveAsTemplate = useCallback(async () => {
@@ -722,6 +910,14 @@ export function Workspace({
     window.history.replaceState({}, "", `/documents/${document.id}`);
   }, [reviewerMode, document.id, document.outline.length, handleGenerate, runValidate]);
 
+  // Generate-readiness: needs at least one outline section AND every section
+  // the author marked Required must have a non-empty heading. Empty required
+  // sections leave the LLM with nothing to title, so we block instead of
+  // emitting a section with no name.
+  const incompleteRequiredIds = incompleteRequiredSectionIds(document.outline);
+  const canGenerate =
+    document.outline.length > 0 && incompleteRequiredIds.length === 0;
+
   const sidebar = (
     <Sidebar
       activeDocumentId={document.id}
@@ -755,6 +951,8 @@ export function Workspace({
       onToggleCollapse={
         isMobile ? undefined : () => togglePaneCollapsed("outline")
       }
+      onSaveAsTemplate={reviewerMode ? undefined : handleSaveAsTemplate}
+      canSaveAsTemplate={!isDocumentEmpty(document)}
     />
   );
   const checksPane = (
@@ -780,8 +978,10 @@ export function Workspace({
       onExpand={openRewriteModal("expand")}
       onGenerate={reviewerMode ? undefined : handleGenerate}
       generating={genStatus === "running"}
-      canGenerate={document.outline.length > 0}
+      canGenerate={canGenerate}
       readOnly={reviewerMode}
+      onEditPrompts={reviewerMode ? undefined : handleEditPrompts}
+      incompleteRequiredIds={incompleteRequiredIds}
     />
   );
   const assembledDraftPane = (
@@ -791,6 +991,7 @@ export function Workspace({
       onToggleCollapse={
         isMobile ? undefined : () => togglePaneCollapsed("assembled")
       }
+      onCheckValidations={reviewerMode ? undefined : handleCheckValidations}
     />
   );
   const statisticsPane = (
@@ -823,10 +1024,11 @@ export function Workspace({
   return (
     <div className="flex h-full flex-col">
       <TopBar
+        document={document}
         documentTitle={document.title}
         validating={status === "running"}
         generating={genStatus === "running"}
-        canGenerate={document.outline.length > 0}
+        canGenerate={canGenerate}
         canExport={hasAnyDraft(document)}
         templates={templates}
         selectedTemplateId={document.templateId}
@@ -844,8 +1046,19 @@ export function Workspace({
         onOpenExport={handleOpenExport}
         onShareScenario={handleShareScenario}
         onToggleReviewerMode={setReviewerMode}
+        onNewDocument={handleNewDocument}
+        onOpenTemplatePicker={handleOpenPicker}
+        onWriteDraft={handleWriteDraft}
         onRenameDocument={handleRenameDocument}
         onDeleteDocument={handleDeleteDocument}
+        docOptionsVisible={docOptionsVisible}
+        validationsVisible={validationsVisible}
+        onToggleDocOptions={handleToggleDocOptions}
+        onToggleValidations={handleToggleValidations}
+        onOpenSpec={handleOpenSpec}
+        onOpenOutline={handleOpenOutline}
+        onOpenStructured={handleOpenStructured}
+        onSimplifiedView={handleSimplifiedView}
       />
       {llmKeyStatus && llmKeyStatus.kind !== "ok" && (
         <LlmKeyWarning status={llmKeyStatus} />
@@ -860,6 +1073,10 @@ export function Workspace({
           assembled={assembledDraftPane}
           stats={statisticsPane}
           validation={validationRail}
+          docOptionsVisible={docOptionsVisible}
+          validationsVisible={validationsVisible}
+          requestedActivePane={mobileNavRequest?.pane}
+          requestedActivePaneNonce={mobileNavRequest?.nonce}
         />
       ) : (
         <div className="flex flex-1 overflow-hidden">
@@ -867,38 +1084,44 @@ export function Workspace({
           <main
             className="grid flex-1 overflow-hidden"
             style={{
-              // Collapsed panes shrink to a thin strip; the freed width flows
-              // to the Draft column (1fr), which is the actual writing surface.
-              // When the Assembled pane is expanded it takes 1fr too, so Draft
-              // and Assembled share width 50/50 side-by-side.
+              // Collapsed panes shrink to a thin strip; hidden panes (via the
+              // TopBar "Doc options" toggle) are removed from the grid entirely.
+              // Freed width flows to Draft (1fr); when Assembled is expanded it
+              // takes 1fr too, so Draft and Assembled share 50/50.
               gridTemplateColumns: [
-                collapsedPanes.has("spec") ? "2.5rem" : "260px",
-                collapsedPanes.has("outline") ? "2.5rem" : "260px",
-                collapsedPanes.has("checks") ? "2.5rem" : "260px",
+                ...(docOptionsVisible
+                  ? [
+                      collapsedPanes.has("spec") ? "2.5rem" : "260px",
+                      collapsedPanes.has("outline") ? "2.5rem" : "340px",
+                      collapsedPanes.has("checks") ? "2.5rem" : "260px",
+                    ]
+                  : []),
                 "1fr",
                 collapsedPanes.has("assembled") ? "2.5rem" : "1fr",
               ].join(" "),
             }}
           >
-            {specPane}
-            {outlinePane}
-            {checksPane}
+            {docOptionsVisible && specPane}
+            {docOptionsVisible && outlinePane}
+            {docOptionsVisible && checksPane}
             {draftPane}
             {assembledDraftPane}
           </main>
-          {validationRail}
+          {validationsVisible && validationRail}
           {/* Statistics sits to the right of the Validation rail. Fixed
               width when expanded; thin strip when collapsed. The left
               border separates it from the rail (the rail itself only
               has a left border). */}
-          <div
-            className={
-              "shrink-0 border-l border-neutral-200 " +
-              (collapsedPanes.has("stats") ? "w-10" : "w-60")
-            }
-          >
-            {statisticsPane}
-          </div>
+          {validationsVisible && (
+            <div
+              className={
+                "shrink-0 border-l border-neutral-200 " +
+                (collapsedPanes.has("stats") ? "w-10" : "w-60")
+              }
+            >
+              {statisticsPane}
+            </div>
+          )}
         </div>
       )}
       {rewriteTarget && (
@@ -952,7 +1175,7 @@ export function Workspace({
           document={document}
           generating={genStatus === "running"}
           validating={status === "running"}
-          canGenerate={document.outline.length > 0}
+          canGenerate={canGenerate}
           onNewDocument={handleNewDocument}
           onSelectTemplate={handleOpenPicker}
           onWriteDraft={handleWriteDraft}
@@ -960,6 +1183,38 @@ export function Workspace({
           onValidate={runValidate}
         />
       )}
+      {paneHighlight && !isMobile && <PointerHint paneId={paneHighlight} />}
+    </div>
+  );
+}
+
+// Renders a large 👉 emoji at the left edge of the highlighted pane, animated
+// to nudge horizontally. Position is computed once on mount via the pane's
+// bounding rect; the parent already auto-clears the highlight after 3s.
+function PointerHint({ paneId }: { paneId: string }) {
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+
+  useLayoutEffect(() => {
+    const el = window.document.getElementById(`pane-${paneId}`);
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    setPos({
+      // Center vertically on the pane top third (where the heading lives, so
+      // the finger lines up with something recognisable).
+      top: rect.top + Math.min(rect.height * 0.18, 72),
+      left: rect.left - 52,
+    });
+  }, [paneId]);
+
+  if (!pos) return null;
+  return (
+    <div
+      aria-hidden="true"
+      data-testid="pane-pointer-hint"
+      className="ds-pointer-hint pointer-events-none fixed z-50 text-5xl"
+      style={{ top: pos.top, left: pos.left }}
+    >
+      👉
     </div>
   );
 }

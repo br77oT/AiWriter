@@ -8,15 +8,23 @@ import {
 } from "./templates";
 import { newDocument, type Document } from "./types";
 
-describe("Template Library — built-in set (V1)", () => {
-  it("ships exactly four V1 templates: Incident Report, Postmortem, Status Report, Custom", () => {
+describe("Template Library — built-in set", () => {
+  it("ships the built-in templates in the expected order, ending with Custom", () => {
     const ids = BUILT_IN_TEMPLATES.map((t) => t.id);
     expect(ids).toEqual([
       "incident-report",
       "postmortem",
       "status-report",
+      "business-plan",
+      "case-study",
+      "business-idea",
+      "project-plan",
+      "release-notes",
       "custom",
     ]);
+    // Custom must remain the last entry — the wizard relies on the blank
+    // template appearing after the filled ones so it reads as "or start blank".
+    expect(ids[ids.length - 1]).toBe("custom");
     for (const t of BUILT_IN_TEMPLATES) {
       expect(t.builtIn).toBe(true);
       expect(t.name.length).toBeGreaterThan(0);
@@ -24,8 +32,9 @@ describe("Template Library — built-in set (V1)", () => {
   });
 
   it("each filled template ships Spec defaults + Outline + Checks", () => {
-    for (const id of ["incident-report", "postmortem", "status-report"]) {
-      const template = getBuiltInTemplate(id)!;
+    // Every built-in except the explicitly-blank Custom should be filled.
+    const filled = BUILT_IN_TEMPLATES.filter((t) => t.id !== "custom");
+    for (const template of filled) {
       expect(template.bundle.spec.goal.length).toBeGreaterThan(0);
       expect(template.bundle.outline.length).toBeGreaterThan(0);
       expect(template.bundle.checks.length).toBeGreaterThan(0);

@@ -27,12 +27,13 @@ export function TemplatePickerModal({
       aria-labelledby="template-picker-title"
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
     >
-      <div className="flex w-full max-w-md flex-col gap-3 rounded-lg bg-white p-5 shadow-xl">
+      <div className="flex w-full max-w-xl flex-col gap-3 rounded-lg bg-white p-5 shadow-xl">
         <h2 id="template-picker-title" className="text-base font-semibold">
           Load a template
         </h2>
         <p className="text-xs text-neutral-600">
-          Loading a template replaces Spec, Outline, and Checks.
+          Opens a new document with this template. Your current document is
+          left untouched.
         </p>
         <ul className="flex max-h-80 flex-col gap-1 overflow-y-auto">
           {templates.length === 0 && (
@@ -40,18 +41,44 @@ export function TemplatePickerModal({
               No templates available.
             </li>
           )}
-          {templates.map((t) => (
+          {templates.map((t, i) => (
             <li key={t.id}>
               <button
                 type="button"
                 disabled={busy}
                 onClick={() => onPick(t.id)}
                 aria-label={`Load template ${t.name}`}
-                className="flex w-full items-center justify-between rounded border border-neutral-200 bg-white px-3 py-2 text-left text-sm hover:bg-neutral-50 disabled:cursor-not-allowed disabled:bg-neutral-100"
+                className="flex w-full items-start gap-3 rounded border border-neutral-200 bg-white px-3 py-2 text-left text-sm hover:bg-neutral-50 disabled:cursor-not-allowed disabled:bg-neutral-100"
               >
-                <span className="font-medium">{t.name}</span>
-                <span className="text-[10px] uppercase tracking-wide text-neutral-400">
-                  {t.builtIn ? "Built-in" : "Saved"}
+                {/* Numbered chip — a positional index, not a step or ranking,
+                    so the styling is neutral (not the blue/green the
+                    Getting-started guide uses for current/done state). */}
+                <span
+                  aria-hidden
+                  className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-neutral-300 text-[11px] font-semibold text-neutral-600"
+                >
+                  {i + 1}
+                </span>
+                <span className="flex min-w-0 flex-1 flex-col gap-1">
+                  <span className="flex w-full items-baseline justify-between gap-2">
+                    <span className="font-medium">{t.name}</span>
+                    <span className="shrink-0 text-[10px] uppercase tracking-wide text-neutral-400">
+                      {t.builtIn ? "Built-in" : "Saved"}
+                    </span>
+                  </span>
+                  {/* Description + audience pulled straight from the template's
+                      Spec, so user-saved templates that never set those fields
+                      just collapse the row to the name. */}
+                  {t.bundle.spec.goal && (
+                    <span className="text-xs text-neutral-600">
+                      {t.bundle.spec.goal}
+                    </span>
+                  )}
+                  {t.bundle.spec.audience && (
+                    <span className="text-xs text-neutral-500">
+                      For: {t.bundle.spec.audience}
+                    </span>
+                  )}
                 </span>
               </button>
             </li>

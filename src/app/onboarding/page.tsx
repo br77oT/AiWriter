@@ -24,6 +24,10 @@ export default function OnboardingPage() {
   // the wizard is the user's first impression and must render instantly.
   const [templates, setTemplates] = useState<Template[]>(BUILT_IN_TEMPLATES);
   const [busy, setBusy] = useState(false);
+  // Whether the user has somewhere to cancel back to. First-run state (zero
+  // documents) has no destination — the home page would just bounce them
+  // straight back to /onboarding — so we hide the Cancel affordance.
+  const [canCancel, setCanCancel] = useState(false);
 
   useEffect(() => {
     fetch("/api/templates")
@@ -35,6 +39,17 @@ export default function OnboardingPage() {
       })
       .catch(() => {
         // Built-in fallback already loaded — degraded silently.
+      });
+
+    fetch("/api/documents")
+      .then((r) => r.json())
+      .then((data: { documents: Array<{ id: string }> }) => {
+        setCanCancel(data.documents.length > 0);
+      })
+      .catch(() => {
+        // On error, leave canCancel=false. Worst case: no Cancel button,
+        // which is the safe default — never strand a first-run user with a
+        // dead button.
       });
   }, []);
 
@@ -78,6 +93,7 @@ export default function OnboardingPage() {
       templates={templates}
       busy={busy}
       onComplete={handleComplete}
+      onCancel={canCancel ? () => router.push("/") : undefined}
     />
   );
 }

@@ -1,12 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Template } from "@/lib/templates";
 
 interface OnboardingWizardProps {
   templates: Template[];
   busy: boolean;
   onComplete: (templateId: string) => void;
+  // Optional escape hatch out of the wizard. The host page only passes this
+  // when there's somewhere to go back to (i.e. at least one existing
+  // document) — first-run users have no cancel destination, so the button
+  // is hidden in that state.
+  onCancel?: () => void;
 }
 
 // Three-step first-run wizard per PRD user story 37 and
@@ -20,11 +25,12 @@ interface OnboardingWizardProps {
 // selection skips step 2 and creates a blank document").
 //
 // User-saved templates are intentionally not surfaced here; onboarding is the
-// four V1 document types only. Built-in vs. user-saved is the filter.
+// built-in document types only. Built-in vs. user-saved is the filter.
 export function OnboardingWizard({
   templates,
   busy,
   onComplete,
+  onCancel,
 }: OnboardingWizardProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
@@ -47,12 +53,34 @@ export function OnboardingWizard({
     setSelectedId(template.id);
   }
 
+  useEffect(() => {
+    if (!onCancel) return;
+    function handleKey(e: KeyboardEvent) {
+      if (e.key === "Escape" && !busy) onCancel!();
+    }
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [onCancel, busy]);
+
   return (
     <main
       className="flex h-full items-center justify-center bg-neutral-50 p-6"
       aria-label="First-run onboarding"
     >
       <div className="flex w-full max-w-2xl flex-col gap-4 rounded-lg border border-neutral-200 bg-white p-6 shadow-sm">
+        {onCancel && (
+          <div className="flex justify-end">
+            <button
+              type="button"
+              aria-label="Cancel and return to your workspace"
+              onClick={onCancel}
+              disabled={busy}
+              className="rounded border border-neutral-300 bg-white px-2 py-0.5 text-xs hover:bg-neutral-100 disabled:cursor-not-allowed disabled:bg-neutral-100"
+            >
+              Cancel
+            </button>
+          </div>
+        )}
         {selected ? (
           <PreviewStep
             template={selected}
@@ -79,6 +107,23 @@ interface PickStepProps {
 }
 
 function PickStep({ templates, busy, onPick }: PickStepProps) {
+  const [filter, setFilter] = useState("");
+  const trimmed = filter.trim().toLowerCase();
+  const matches = trimmed === ""
+    ? templates
+    : templates.filter((t) => {
+        // Match on name, goal, and section headings so a search like
+        // "incident" or "timeline" surfaces the relevant templates.
+        const haystack = [
+          t.name,
+          t.bundle.spec.goal,
+          ...t.bundle.outline.map((s) => s.heading),
+        ]
+          .join(" ")
+          .toLowerCase();
+        return haystack.includes(trimmed);
+      });
+
   return (
     <>
       <header className="flex flex-col gap-1">
@@ -92,23 +137,57 @@ function PickStep({ templates, busy, onPick }: PickStepProps) {
           Pick a starter so your Spec, Outline, and Checks are ready to edit.
         </p>
       </header>
-      <ul className="grid gap-2">
-        {templates.map((t) => (
-          <li key={t.id}>
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => onPick(t)}
-              className="flex w-full flex-col items-start gap-1 rounded-md border border-neutral-200 bg-white p-3 text-left hover:bg-neutral-50 disabled:cursor-not-allowed disabled:bg-neutral-100"
-            >
-              <span className="text-sm font-medium">{t.name}</span>
-              <span className="text-xs text-neutral-500">
-                {describeTemplate(t)}
-              </span>
-            </button>
-          </li>
-        ))}
-      </ul>
+      <div className="relative">
+        <input
+          type="text"
+          aria-label="Filter document types"
+          placeholder="Search document types…"
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+          className="ds-input w-full pr-8"
+        />
+        {filter !== "" && (
+          <button
+            type="button"
+            aria-label="Clear filter"
+            onClick={() => setFilter("")}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-xs leading-none text-neutral-400 hover:text-neutral-700"
+          >
+            ×
+          </button>
+        )}
+      </div>
+      {matches.length === 0 ? (
+        <p
+          data-testid="onboarding-no-matches"
+          className="text-sm text-neutral-400"
+        >
+          No document types match &ldquo;{filter}&rdquo;.
+        </p>
+      ) : (
+        <ul className="grid gap-2">
+          {matches.map((t) => (
+            <li key={t.id}>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => onPick(t)}
+                className="flex w-full flex-col items-start gap-1 rounded-md border border-neutral-200 bg-white p-3 text-left hover:bg-neutral-50 disabled:cursor-not-allowed disabled:bg-neutral-100"
+              >
+                <div className="flex w-full items-center justify-between gap-2">
+                  <span className="text-sm font-medium">{t.name}</span>
+                  <span className="shrink-0 text-[11px] uppercase tracking-wide text-neutral-400">
+                    {summarizeTemplateShape(t)}
+                  </span>
+                </div>
+                <span className="text-xs text-neutral-600">
+                  {describeTemplate(t)}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </>
   );
 }
@@ -194,5 +273,18 @@ function describeTemplate(t: Template): string {
   if (oCount === 0 && cCount === 0) {
     return "Start with a blank Spec, Outline, and Checks.";
   }
+  // Prefer the template's stated purpose (spec.goal) — it's already written
+  // in plain English when the template is defined. Fall back to the shape
+  // summary for any template that ships without a goal.
+  const goal = t.bundle.spec.goal.trim();
+  return goal !== "" ? goal : `${oCount} sections · ${cCount} checks`;
+}
+
+// One-line shape summary shown on the right of each template card so the
+// user can see at a glance how big the preload is without reading the goal.
+function summarizeTemplateShape(t: Template): string {
+  const oCount = t.bundle.outline.length;
+  const cCount = t.bundle.checks.length;
+  if (oCount === 0 && cCount === 0) return "Blank";
   return `${oCount} sections · ${cCount} checks`;
 }

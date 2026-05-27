@@ -1,5 +1,11 @@
 import { describe, it, expect, afterEach } from "vitest";
-import { render, screen, cleanup, fireEvent } from "@testing-library/react";
+import {
+  render,
+  screen,
+  cleanup,
+  fireEvent,
+  waitFor,
+} from "@testing-library/react";
 import { AppFooter } from "./AppFooter";
 
 afterEach(() => {
@@ -43,7 +49,7 @@ describe("AppFooter", () => {
     expect(copy).toHaveTextContent("℠");
   });
 
-  it("About button opens a modal with the problem-focused copy; Close dismisses it", () => {
+  it("About button opens a modal with the problem-focused copy; Close dismisses it", async () => {
     render(<AppFooter />);
     fireEvent.click(screen.getByRole("button", { name: /^about$/i }));
     const modal = screen.getByTestId("footer-modal-about");
@@ -57,7 +63,10 @@ describe("AppFooter", () => {
     fireEvent.click(
       screen.getByRole("button", { name: /^close$/i })
     );
-    expect(screen.queryByTestId("footer-modal-about")).toBeNull();
+    // Modal plays a brief fade-out before unmounting, so wait for it.
+    await waitFor(() =>
+      expect(screen.queryByTestId("footer-modal-about")).toBeNull()
+    );
   });
 
   it("Contact button opens a modal with the placeholder mailto link", () => {

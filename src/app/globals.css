@@ -2,6 +2,40 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Design tokens — see docs/design-system.md for the full reference. */
+:root {
+  --surface-app: #e9ecf3;
+  --surface-elevated: #ffffff;
+  --surface-sunken: #f8fafc;
+  --surface-soft-blue: #eff6ff;
+
+  --border-subtle: #e2e8f0;
+  --border-strong: #cbd5e1;
+
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-tertiary: #94a3b8;
+  --text-on-primary: #ffffff;
+
+  --primary: #2563eb;
+  --primary-hover: #1d4ed8;
+  --primary-soft: #dbeafe;
+
+  --success-bg: #dcfce7;
+  --success-fg: #15803d;
+  --warning-bg: #fef3c7;
+  --warning-fg: #b45309;
+  --danger-bg: #fee2e2;
+  --danger-fg: #b91c1c;
+
+  --radius-card: 16px;
+  --radius-control: 10px;
+
+  --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04),
+    0 1px 3px rgba(15, 23, 42, 0.06);
+  --shadow-elevated: 0 4px 12px rgba(15, 23, 42, 0.08);
+}
+
 html,
 body,
 #__next {
@@ -9,6 +43,169 @@ body,
 }
 
 body {
-  background-color: #fafafa;
-  color: #111;
+  background-color: var(--surface-app);
+  color: var(--text-primary);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, "Apple Color Emoji", "Segoe UI Emoji";
+}
+
+/* --- Reusable component classes ------------------------------------------
+   Used by the workspace shell and panes so a future re-skin only needs to
+   touch this file. Tailwind utilities still work for one-off cases. */
+@layer components {
+  .ds-card {
+    @apply rounded-2xl border bg-white;
+    border-color: var(--border-subtle);
+    box-shadow: var(--shadow-card);
+  }
+
+  .ds-section-label {
+    @apply text-xs font-semibold uppercase tracking-wide;
+    color: var(--text-secondary);
+  }
+
+  .ds-btn-primary {
+    background-color: var(--primary);
+    color: var(--text-on-primary);
+    border-radius: var(--radius-control);
+    @apply inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium transition-colors;
+  }
+  .ds-btn-primary:hover:not(:disabled) {
+    background-color: var(--primary-hover);
+  }
+  .ds-btn-primary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .ds-btn-soft {
+    background-color: var(--primary-soft);
+    color: var(--primary);
+    border-radius: var(--radius-control);
+    @apply inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium transition-colors;
+  }
+  .ds-btn-soft:hover:not(:disabled) {
+    background-color: #c7dcfd;
+  }
+  .ds-btn-soft:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .ds-btn-secondary {
+    background-color: var(--surface-elevated);
+    color: var(--text-primary);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-control);
+    @apply inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium transition-colors;
+  }
+  .ds-btn-secondary:hover:not(:disabled) {
+    background-color: var(--surface-sunken);
+  }
+  .ds-btn-secondary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .ds-pill {
+    @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium;
+  }
+  .ds-pill-success {
+    background-color: var(--success-bg);
+    color: var(--success-fg);
+  }
+  .ds-pill-warning {
+    background-color: var(--warning-bg);
+    color: var(--warning-fg);
+  }
+  .ds-pill-danger {
+    background-color: var(--danger-bg);
+    color: var(--danger-fg);
+  }
+  .ds-pill-neutral {
+    background-color: var(--surface-sunken);
+    color: var(--text-secondary);
+  }
+
+  .ds-pane-heading {
+    @apply text-xs font-semibold uppercase tracking-wide;
+    color: var(--text-secondary);
+  }
+
+  .ds-input,
+  .ds-select,
+  .ds-textarea {
+    background-color: var(--surface-elevated);
+    color: var(--text-primary);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-control);
+    @apply px-3 py-2 text-sm transition-colors;
+  }
+  .ds-input:focus,
+  .ds-select:focus,
+  .ds-textarea:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+  }
+  .ds-input:disabled,
+  .ds-select:disabled,
+  .ds-textarea:disabled {
+    background-color: var(--surface-sunken);
+    color: var(--text-tertiary);
+  }
+  .ds-input::placeholder,
+  .ds-textarea::placeholder {
+    color: var(--text-tertiary);
+  }
+
+  /* Small variant for inline / dense rows. */
+  .ds-input--sm,
+  .ds-select--sm {
+    @apply px-2 py-1 text-xs;
+  }
+
+  .ds-btn-danger {
+    background-color: var(--surface-elevated);
+    color: var(--danger-fg);
+    border: 1px solid var(--danger-bg);
+    border-radius: var(--radius-control);
+    @apply inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium transition-colors;
+  }
+  .ds-btn-danger:hover:not(:disabled) {
+    background-color: var(--danger-bg);
+  }
+  .ds-btn-danger:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  /* Compact (xs) variants for inline button rows inside list items. */
+  .ds-btn-secondary--xs,
+  .ds-btn-soft--xs,
+  .ds-btn-danger--xs {
+    @apply px-2 py-0.5 text-xs;
+  }
+
+  .ds-list-item {
+    border: 1px solid var(--border-subtle);
+    background-color: var(--surface-sunken);
+    border-radius: var(--radius-control);
+    @apply p-3;
+  }
+}
+
+/* Pointer-hint animation: a large 👉 emoji that nudges horizontally toward
+   the highlighted pane. Used when the user clicks one of the tagline links
+   in the TopBar. */
+@keyframes ds-pointer-nudge {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  50% {
+    transform: translateX(10px);
+  }
+}
+.ds-pointer-hint {
+  animation: ds-pointer-nudge 0.9s ease-in-out infinite;
 }

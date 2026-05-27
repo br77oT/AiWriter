@@ -1,5 +1,12 @@
 import { describe, it, expect, afterEach } from "vitest";
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { MobileWorkspaceLayout } from "./MobileWorkspaceLayout";
 
 afterEach(() => cleanup());
@@ -27,16 +34,16 @@ describe("MobileWorkspaceLayout", () => {
     expect(within(tablist).getByRole("tab", { name: /document outline/i })).toBeInTheDocument();
     expect(within(tablist).getByRole("tab", { name: /validation checks/i })).toBeInTheDocument();
     expect(within(tablist).getByRole("tab", { name: /^draft$/i })).toBeInTheDocument();
-    expect(within(tablist).getByRole("tab", { name: /^assembled$/i })).toBeInTheDocument();
+    expect(within(tablist).getByRole("tab", { name: /^generated$/i })).toBeInTheDocument();
     expect(within(tablist).getByRole("tab", { name: /^stats$/i })).toBeInTheDocument();
     expect(within(tablist).getByRole("tab", { name: /^validation$/i })).toBeInTheDocument();
   });
 
-  it("Assembled tab swaps in the assembled-draft pane", () => {
+  it("Generated tab swaps in the generated-draft pane", () => {
     renderLayout();
-    fireEvent.click(screen.getByRole("tab", { name: /^assembled$/i }));
+    fireEvent.click(screen.getByRole("tab", { name: /^generated$/i }));
     expect(
-      screen.getByRole("tab", { name: /^assembled$/i })
+      screen.getByRole("tab", { name: /^generated$/i })
     ).toHaveAttribute("aria-selected", "true");
     expect(
       within(screen.getByTestId("mobile-active-pane-assembled")).getByTestId(
@@ -76,7 +83,7 @@ describe("MobileWorkspaceLayout", () => {
     ).toBeInTheDocument();
   });
 
-  it("Menu button opens a drawer containing the sidebar; Close dismisses it", () => {
+  it("Menu button opens a drawer containing the sidebar; Close dismisses it", async () => {
     renderLayout();
     expect(
       screen.queryByRole("dialog", { name: /documents and templates drawer/i })
@@ -89,17 +96,22 @@ describe("MobileWorkspaceLayout", () => {
     expect(within(drawer).getByTestId("sidebar-content")).toBeInTheDocument();
 
     fireEvent.click(within(drawer).getByRole("button", { name: /^close$/i }));
-    expect(
-      screen.queryByRole("dialog", { name: /documents and templates drawer/i })
-    ).toBeNull();
+    // Drawer plays a slide-out before unmounting.
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("dialog", { name: /documents and templates drawer/i })
+      ).toBeNull()
+    );
   });
 
-  it("clicking the backdrop closes the drawer", () => {
+  it("clicking the backdrop closes the drawer", async () => {
     renderLayout();
     fireEvent.click(screen.getByRole("button", { name: /^menu$/i }));
     fireEvent.click(screen.getByRole("button", { name: /^close drawer$/i }));
-    expect(
-      screen.queryByRole("dialog", { name: /documents and templates drawer/i })
-    ).toBeNull();
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("dialog", { name: /documents and templates drawer/i })
+      ).toBeNull()
+    );
   });
 });

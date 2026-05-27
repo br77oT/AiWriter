@@ -48,15 +48,12 @@ export function ChecksPane({
 
   return (
     <section
-      className="flex h-full flex-col gap-3 overflow-y-auto border-r border-neutral-200 bg-white p-3"
+      className="flex h-full flex-col gap-3 overflow-y-auto border-r border-[color:var(--border-subtle)] bg-white p-4"
       aria-labelledby="checks-pane-heading"
     >
       <div className="flex items-center gap-2">
-        <h2
-          id="checks-pane-heading"
-          className="text-sm font-semibold uppercase tracking-wide text-neutral-600"
-        >
-          Validation Checks
+        <h2 id="checks-pane-heading" className="ds-pane-heading">
+          Validation Checks ({checks.length})
         </h2>
         {onToggleCollapse && (
           <CollapseButton label="Validation Checks" onCollapse={onToggleCollapse} />
@@ -64,7 +61,7 @@ export function ChecksPane({
       </div>
       <p
         data-testid="checks-pane-description"
-        className="-mt-2 text-xs text-neutral-500"
+        className="-mt-2 text-xs text-[color:var(--text-tertiary)]"
       >
         Questions the finished draft must answer. Validation grades each one
         and highlights gaps in the rail on the right.
@@ -73,48 +70,45 @@ export function ChecksPane({
         type="button"
         onClick={onLoadTemplate}
         disabled={readOnly}
-        className="-mt-2 self-start rounded border border-neutral-300 bg-white px-2 py-0.5 text-xs text-neutral-700 hover:bg-neutral-100 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-400"
+        className="ds-btn-secondary ds-btn-secondary--xs -mt-2 self-start"
       >
         Load template
       </button>
 
       {checks.length === 0 ? (
-        <p className="text-sm text-neutral-400">
+        <p className="text-sm text-[color:var(--text-tertiary)]">
           No checks yet. Click <span className="font-medium">Add check</span> to
           add a question the draft must answer.
         </p>
       ) : (
         <ol className="space-y-2">
           {checks.map((check, idx) => (
-            <li
-              key={check.id}
-              className="flex min-w-0 items-start gap-2 rounded border border-neutral-200 bg-neutral-50 p-2"
-            >
-              <span className="mt-1 select-none text-xs text-neutral-400">
-                {idx + 1}.
-              </span>
-              <input
-                type="text"
-                aria-label={`Question ${idx + 1}`}
-                value={check.question}
-                disabled={readOnly}
-                onChange={(e) => handleEdit(check.id, e.target.value)}
-                placeholder="What question must the draft answer?"
-                // `min-w-0` lets a flex child shrink below its intrinsic
-                // content width; without it the default text-input width
-                // forces the row to overflow the gray container in a narrow
-                // pane.
-                className="min-w-0 flex-1 rounded border border-neutral-300 bg-white px-2 py-1 text-sm disabled:bg-neutral-100 disabled:text-neutral-500"
-              />
+            <li key={check.id} className="ds-list-item min-w-0">
+              <div className="flex min-w-0 items-start gap-2">
+                <span className="mt-2 select-none text-xs text-[color:var(--text-tertiary)]">
+                  {idx + 1}.
+                </span>
+                <input
+                  type="text"
+                  aria-label={`Question ${idx + 1}`}
+                  value={check.question}
+                  disabled={readOnly}
+                  onChange={(e) => handleEdit(check.id, e.target.value)}
+                  placeholder="What question must the draft answer?"
+                  className="ds-input ds-input--sm min-w-0 flex-1"
+                />
+              </div>
               {!readOnly && (
-                <button
-                  type="button"
-                  aria-label={`Remove check "${check.question || `question ${idx + 1}`}"`}
-                  onClick={() => handleRemove(check.id)}
-                  className="rounded border border-neutral-300 bg-white px-2 py-1 text-xs text-neutral-600 hover:text-red-600"
-                >
-                  Remove
-                </button>
+                <div className="mt-2 flex justify-end">
+                  <button
+                    type="button"
+                    aria-label={`Remove check "${check.question || `question ${idx + 1}`}"`}
+                    onClick={() => handleRemove(check.id)}
+                    className="ds-btn-danger ds-btn-danger--xs"
+                  >
+                    Remove
+                  </button>
+                </div>
               )}
             </li>
           ))}
@@ -125,12 +119,12 @@ export function ChecksPane({
         type="button"
         onClick={handleAdd}
         disabled={readOnly}
-        className="self-start rounded border border-neutral-300 bg-white px-3 py-1 text-sm hover:bg-neutral-100 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-400"
+        className="ds-btn-soft self-start"
       >
         + Add check
       </button>
 
-      <div className="mt-2 flex flex-col gap-2 border-t border-neutral-200 pt-3 text-xs text-neutral-700">
+      <div className="mt-2 flex flex-col gap-2 border-t border-[color:var(--border-subtle)] pt-3 text-xs text-[color:var(--text-secondary)]">
         <label className="flex items-start gap-2">
           <input
             type="checkbox"

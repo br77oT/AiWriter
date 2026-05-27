@@ -57,4 +57,27 @@ describe("useReviewerMode", () => {
     act(() => result.current[1](false));
     expect(result.current[0]).toBe(false);
   });
+
+  it("the setter writes ?mode=reviewer to the URL when enabling", () => {
+    window.history.replaceState({}, "", "/documents/abc");
+    const { result } = renderHook(() => useReviewerMode());
+
+    act(() => result.current[1](true));
+
+    expect(readReviewerModeFromURL()).toBe(true);
+    expect(window.location.search).toContain("mode=reviewer");
+  });
+
+  it("the setter removes the mode param when disabling", () => {
+    window.history.replaceState({}, "", "/documents/abc?mode=reviewer&foo=bar");
+    const { result } = renderHook(() => useReviewerMode());
+    expect(result.current[0]).toBe(true);
+
+    act(() => result.current[1](false));
+
+    expect(readReviewerModeFromURL()).toBe(false);
+    // Other query params are preserved.
+    expect(window.location.search).toContain("foo=bar");
+    expect(window.location.search).not.toContain("mode=");
+  });
 });

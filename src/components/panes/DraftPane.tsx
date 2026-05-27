@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import type { Document, OutlineSection } from "@/lib/types";
 
 interface DraftPaneProps {
@@ -13,6 +14,13 @@ interface DraftPaneProps {
   generating?: boolean;
   canGenerate?: boolean;
   readOnly?: boolean;
+  // Reveals the Document Outline pane (where the per-section prompts live)
+  // and focuses it. Omitted in reviewer mode.
+  onEditPrompts?: () => void;
+  // Ids of sections marked Required whose heading is still blank. Rendered
+  // as a red "Heading needed" indicator next to the prompt so the user
+  // knows what to fix before Generate Draft will run.
+  incompleteRequiredIds?: string[];
 }
 
 // Per-section editor with Slice 007 affordances:
@@ -35,20 +43,21 @@ export function DraftPane({
   generating = false,
   canGenerate = false,
   readOnly = false,
+  onEditPrompts,
+  incompleteRequiredIds = [],
 }: DraftPaneProps) {
   const sections = document.outline;
   const lockedIds = new Set(document.lockedSectionIds);
+  const incompleteSet = new Set(incompleteRequiredIds);
   const showGenerate = !readOnly && Boolean(onGenerate);
+  const showEditPrompts = !readOnly && Boolean(onEditPrompts);
 
   return (
     <section
-      className="flex h-full flex-col overflow-y-auto border-r border-neutral-200 bg-white p-3"
+      className="flex h-full flex-col overflow-y-auto border-r border-[color:var(--border-subtle)] bg-white p-4"
       aria-labelledby="draft-pane-heading"
     >
-      <h2
-        id="draft-pane-heading"
-        className="mb-2 text-sm font-semibold uppercase tracking-wide text-neutral-600"
-      >
+      <h2 id="draft-pane-heading" className="ds-pane-heading mb-2">
         Draft
       </h2>
 
@@ -58,6 +67,19 @@ export function DraftPane({
           generating={generating}
           canGenerate={canGenerate}
           onGenerate={onGenerate!}
+          extraButton={
+            showEditPrompts ? (
+              <button
+                type="button"
+                data-testid="draft-edit-prompts"
+                onClick={onEditPrompts}
+                title="Open the Document Outline pane to edit the per-section prompts."
+                className="ds-btn-secondary"
+              >
+                Edit prompts
+              </button>
+            ) : null
+          }
         />
       )}
 
@@ -72,19 +94,42 @@ export function DraftPane({
             const locked = lockedIds.has(section.id);
             const isEmpty =
               (document.draftSections[section.id] ?? "").trim() === "";
+            const needsHeading = incompleteSet.has(section.id);
             return (
               <div key={section.id}>
-                <div className="mb-1 flex items-center justify-between gap-2">
-                  <label className="text-sm font-medium text-neutral-800">
+                <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+                  <label className="flex flex-wrap items-center gap-1.5 text-sm font-medium text-neutral-800">
                     <span
                       data-testid={`section-prompt-number-${section.id}`}
-                      className="mr-1 text-neutral-500"
+                      className="text-neutral-500"
                     >
                       {index + 1}.
                     </span>
-                    {section.heading}
-                    {!section.required && (
-                      <span className="ml-1 text-xs text-neutral-400">
+                    {section.heading || (
+                      <span className="italic text-neutral-400">
+                        (untitled)
+                      </span>
+                    )}
+                    {needsHeading ? (
+                      <span
+                        data-testid={`section-needs-heading-${section.id}`}
+                        className="ds-pill ds-pill-danger"
+                        title="This prompt is marked Required. Add a heading in the Document Outline pane before generating."
+                      >
+                        Heading required
+                      </span>
+                    ) : section.required ? (
+                      <span
+                        className="ds-pill"
+                        style={{
+                          backgroundColor: "var(--primary-soft)",
+                          color: "var(--primary)",
+                        }}
+                      >
+                        Required
+                      </span>
+                    ) : (
+                      <span className="text-xs text-neutral-400">
                         (optional)
                       </span>
                     )}
@@ -102,7 +147,7 @@ export function DraftPane({
                               exampleTextFor(section)
                             )
                           }
-                          className="rounded border border-neutral-300 bg-white px-2 py-0.5 hover:bg-neutral-100 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-400"
+                          className="ds-btn-secondary ds-btn-secondary--xs"
                         >
                           Insert example
                         </button>
@@ -141,7 +186,7 @@ export function DraftPane({
                 </div>
                 <textarea
                   aria-label={`Draft text for ${section.heading}`}
-                  className="min-h-[6rem] w-full rounded border border-neutral-300 p-2 text-sm leading-relaxed disabled:bg-neutral-100 disabled:text-neutral-500"
+                  className="ds-textarea min-h-[6rem] w-full leading-relaxed"
                   value={document.draftSections[section.id] ?? ""}
                   disabled={locked || readOnly}
                   placeholder={
@@ -176,11 +221,16 @@ function GenerateDraftButton({
   generating,
   canGenerate,
   onGenerate,
+  extraButton,
 }: {
   position: "top" | "bottom";
   generating: boolean;
   canGenerate: boolean;
   onGenerate: () => void;
+  // Optional sibling button rendered on the same row as Generate Draft
+  // (top variant only). Used by DraftPane to host "Edit prompts" without
+  // a separate header row.
+  extraButton?: ReactNode;
 }) {
   const isTop = position === "top";
   return (
@@ -199,26 +249,29 @@ function GenerateDraftButton({
           The numbered prompts below will be combined into a final draft.
         </p>
       )}
-      <button
-        type="button"
-        data-testid={`draft-generate-${position}`}
-        onClick={onGenerate}
-        disabled={generating || !canGenerate}
-        title={
-          canGenerate
-            ? undefined
-            : "Add at least one outline section to generate."
-        }
-        className="inline-flex items-center gap-1 rounded border border-neutral-300 bg-white px-3 py-1 text-sm hover:bg-neutral-100 disabled:bg-neutral-100 disabled:text-neutral-400"
-      >
-        <span>{generating ? "Generating…" : "Generate Draft"}</span>
-        {/* Right arrow on both buttons — the click sends the prompts to
-            the Assembled draft pane on the right. aria-hidden so screen
-            readers hear only "Generate Draft". */}
-        <span aria-hidden="true" className="text-neutral-500">
-          →
-        </span>
-      </button>
+      <div className={isTop ? "flex flex-wrap items-center gap-2" : "contents"}>
+        <button
+          type="button"
+          data-testid={`draft-generate-${position}`}
+          onClick={onGenerate}
+          disabled={generating || !canGenerate}
+          title={
+            canGenerate
+              ? undefined
+              : "Add at least one outline section, and give every required section a heading, before generating."
+          }
+          className="ds-btn-primary"
+        >
+          <span>{generating ? "Generating…" : "Generate Draft"}</span>
+          {/* Right arrow on both buttons — the click sends the prompts to
+              the Assembled draft pane on the right. aria-hidden so screen
+              readers hear only "Generate Draft". */}
+          <span aria-hidden="true" className="opacity-80">
+            →
+          </span>
+        </button>
+        {isTop && extraButton}
+      </div>
     </div>
   );
 }

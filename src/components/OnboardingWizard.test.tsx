@@ -7,13 +7,13 @@ afterEach(() => {
   cleanup();
 });
 
-// The wizard always uses the four V1 built-ins on step 1, so feed it the real
-// list. User-saved templates are deliberately excluded from onboarding —
-// per the issue, step 1 is the four V1 document types only.
+// The wizard uses the full built-in set on step 1, so feed it the real list.
+// User-saved templates are deliberately excluded from onboarding —
+// per the issue, step 1 is the built-in document types only.
 const builtInTemplates = BUILT_IN_TEMPLATES;
 
 describe("OnboardingWizard step 1 (pick a document type)", () => {
-  it("renders the four V1 document types as options", () => {
+  it("renders every built-in document type as an option", () => {
     render(
       <OnboardingWizard
         templates={builtInTemplates}
@@ -22,16 +22,11 @@ describe("OnboardingWizard step 1 (pick a document type)", () => {
       />
     );
 
-    expect(
-      screen.getByRole("button", { name: /Incident Report/i })
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: /Postmortem/i })
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: /Status Report/i })
-    ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Custom/i })).toBeInTheDocument();
+    for (const template of builtInTemplates) {
+      expect(
+        screen.getByRole("button", { name: new RegExp(template.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i") })
+      ).toBeInTheDocument();
+    }
   });
 
   it("clicking Custom completes the flow immediately (skips step 2)", () => {
@@ -162,6 +157,87 @@ describe("OnboardingWizard step 2 (preview preloaded outline + checks)", () => {
   });
 });
 
+describe("OnboardingWizard cancel (exit the picker)", () => {
+  it("does not render Cancel when onCancel is not provided (first-run state)", () => {
+    render(
+      <OnboardingWizard
+        templates={builtInTemplates}
+        busy={false}
+        onComplete={() => {}}
+      />
+    );
+
+    expect(
+      screen.queryByRole("button", { name: /Cancel/i })
+    ).not.toBeInTheDocument();
+  });
+
+  it("renders Cancel on step 1 when onCancel is provided", () => {
+    const onCancel = vi.fn();
+    render(
+      <OnboardingWizard
+        templates={builtInTemplates}
+        busy={false}
+        onComplete={() => {}}
+        onCancel={onCancel}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Cancel/i }));
+    expect(onCancel).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders Cancel on step 2 (preview) too", () => {
+    const onCancel = vi.fn();
+    render(
+      <OnboardingWizard
+        templates={builtInTemplates}
+        busy={false}
+        onComplete={() => {}}
+        onCancel={onCancel}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Incident Report/i }));
+    // Preview step is visible, and Cancel is still reachable.
+    expect(
+      screen.getByRole("heading", { name: /Review preloaded/i })
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Cancel/i }));
+    expect(onCancel).toHaveBeenCalledTimes(1);
+  });
+
+  it("Escape key fires onCancel", () => {
+    const onCancel = vi.fn();
+    render(
+      <OnboardingWizard
+        templates={builtInTemplates}
+        busy={false}
+        onComplete={() => {}}
+        onCancel={onCancel}
+      />
+    );
+
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(onCancel).toHaveBeenCalledTimes(1);
+  });
+
+  it("Escape key is a no-op while busy (avoids cancelling mid-create)", () => {
+    const onCancel = vi.fn();
+    render(
+      <OnboardingWizard
+        templates={builtInTemplates}
+        busy={true}
+        onComplete={() => {}}
+        onCancel={onCancel}
+      />
+    );
+
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(onCancel).not.toHaveBeenCalled();
+  });
+});
+
 describe("OnboardingWizard busy state", () => {
   it("disables all type buttons while busy (a request is in flight)", () => {
     render(
@@ -172,16 +248,11 @@ describe("OnboardingWizard busy state", () => {
       />
     );
 
-    expect(
-      screen.getByRole("button", { name: /Incident Report/i })
-    ).toBeDisabled();
-    expect(
-      screen.getByRole("button", { name: /Postmortem/i })
-    ).toBeDisabled();
-    expect(
-      screen.getByRole("button", { name: /Status Report/i })
-    ).toBeDisabled();
-    expect(screen.getByRole("button", { name: /Custom/i })).toBeDisabled();
+    for (const template of builtInTemplates) {
+      expect(
+        screen.getByRole("button", { name: new RegExp(template.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i") })
+      ).toBeDisabled();
+    }
   });
 
   it("disables Use this template + Back while busy on step 2", () => {

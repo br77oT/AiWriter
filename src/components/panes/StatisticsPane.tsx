@@ -31,14 +31,11 @@ export function StatisticsPane({
   return (
     <section
       data-testid="statistics-pane"
-      className="flex h-full flex-col gap-3 overflow-y-auto border-r border-neutral-200 bg-white p-3"
+      className="flex h-full flex-col gap-3 overflow-y-auto border-r border-[color:var(--border-subtle)] bg-white p-4"
       aria-labelledby="statistics-pane-heading"
     >
       <div className="flex items-center gap-2">
-        <h2
-          id="statistics-pane-heading"
-          className="text-sm font-semibold uppercase tracking-wide text-neutral-600"
-        >
+        <h2 id="statistics-pane-heading" className="ds-pane-heading">
           Statistics
         </h2>
         {onToggleCollapse && (
@@ -47,7 +44,7 @@ export function StatisticsPane({
       </div>
       <p
         data-testid="statistics-pane-description"
-        className="-mt-1 text-xs text-neutral-500"
+        className="-mt-1 text-xs text-[color:var(--text-tertiary)]"
       >
         At-a-glance metrics: how long each step took, how many times the
         draft was regenerated, the current word count, and an API-cost
@@ -135,9 +132,7 @@ function Group({
   // collision without renaming user-facing copy.
   return (
     <div>
-      <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-neutral-500">
-        {title}
-      </div>
+      <div className="ds-pane-heading mb-1">{title}</div>
       <dl className="space-y-1 text-sm">{children}</dl>
     </div>
   );
@@ -154,10 +149,10 @@ function Row({
 }) {
   return (
     <div className="flex items-baseline justify-between gap-2">
-      <dt className="text-neutral-700" title={hint}>
+      <dt className="text-[color:var(--text-secondary)]" title={hint}>
         {label}
       </dt>
-      <dd className="font-mono text-neutral-900">{value}</dd>
+      <dd className="font-mono text-[color:var(--text-primary)]">{value}</dd>
     </div>
   );
 }

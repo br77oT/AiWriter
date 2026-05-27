@@ -25,14 +25,12 @@ export function SpecPane({
 
   return (
     <section
-      className="flex h-full flex-col gap-4 overflow-y-auto border-r border-neutral-200 bg-white p-3"
+      id="pane-spec"
+      className="flex h-full flex-col gap-4 overflow-y-auto border-r border-[color:var(--border-subtle)] bg-white p-4"
       aria-labelledby="spec-pane-heading"
     >
       <div className="flex items-center justify-between">
-        <h2
-          id="spec-pane-heading"
-          className="text-sm font-semibold uppercase tracking-wide text-neutral-600"
-        >
+        <h2 id="spec-pane-heading" className="ds-pane-heading">
           Tone and Purpose
         </h2>
         {onToggleCollapse && (
@@ -41,7 +39,7 @@ export function SpecPane({
       </div>
       <p
         data-testid="spec-pane-description"
-        className="-mt-2 text-xs text-neutral-500"
+        className="-mt-2 text-xs text-[color:var(--text-tertiary)]"
       >
         What the document is about — goal, tone, audience, and content the
         draft must include or avoid.
@@ -50,7 +48,7 @@ export function SpecPane({
       <Field label="Goal" htmlFor="spec-goal">
         <textarea
           id="spec-goal"
-          className="min-h-[5rem] w-full rounded border border-neutral-300 p-2 text-sm leading-relaxed disabled:bg-neutral-100 disabled:text-neutral-500"
+          className="ds-textarea min-h-[5rem] w-full leading-relaxed"
           value={spec.goal}
           disabled={readOnly}
           onChange={(e) => onSpecChange({ ...spec, goal: e.target.value })}
@@ -60,7 +58,7 @@ export function SpecPane({
       <Field label="Tone" htmlFor="spec-tone">
         <textarea
           id="spec-tone"
-          className="min-h-[4rem] w-full rounded border border-neutral-300 p-2 text-sm leading-relaxed disabled:bg-neutral-100 disabled:text-neutral-500"
+          className="ds-textarea min-h-[4rem] w-full leading-relaxed"
           value={spec.tone}
           disabled={readOnly}
           onChange={(e) => onSpecChange({ ...spec, tone: e.target.value })}
@@ -71,7 +69,7 @@ export function SpecPane({
         <input
           id="spec-audience"
           type="text"
-          className="w-full rounded border border-neutral-300 p-2 text-sm disabled:bg-neutral-100 disabled:text-neutral-500"
+          className="ds-input w-full"
           value={spec.audience}
           disabled={readOnly}
           onChange={(e) =>
@@ -112,7 +110,7 @@ function Field({
     <div>
       <label
         htmlFor={htmlFor}
-        className="mb-1 block text-xs font-medium uppercase tracking-wide text-neutral-500"
+        className="ds-pane-heading mb-1 block"
       >
         {label}
       </label>
@@ -142,17 +140,15 @@ function ListEditor({ label, kind, items, readOnly, onChange }: ListEditorProps)
 
   return (
     <div>
-      <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-neutral-500">
-        {label}
-      </span>
+      <span className="ds-pane-heading mb-1 block">{label}</span>
       {items.length === 0 ? (
-        <p className="mb-2 text-sm text-neutral-400">No items.</p>
+        <p className="mb-2 text-sm text-[color:var(--text-tertiary)]">No items.</p>
       ) : (
         <ul className="mb-2 space-y-1">
           {items.map((item, idx) => (
             <li
               key={`${idx}-${item}`}
-              className="flex items-center gap-2 rounded border border-neutral-200 bg-neutral-50 px-2 py-1 text-sm"
+              className="flex items-center gap-2 rounded-[var(--radius-control)] border border-[color:var(--border-subtle)] bg-[color:var(--surface-sunken)] px-3 py-1.5 text-sm"
             >
               <span className="flex-1 break-words">{item}</span>
               {!readOnly && (
@@ -160,7 +156,7 @@ function ListEditor({ label, kind, items, readOnly, onChange }: ListEditorProps)
                   type="button"
                   aria-label={`Remove ${kind} "${item}"`}
                   onClick={() => onChange(items.filter((_, i) => i !== idx))}
-                  className="text-xs text-neutral-500 hover:text-red-600"
+                  className="text-xs text-[color:var(--text-secondary)] hover:text-[color:var(--danger-fg)]"
                 >
                   Remove
                 </button>
@@ -186,14 +182,14 @@ function ListEditor({ label, kind, items, readOnly, onChange }: ListEditorProps)
                 add();
               }
             }}
-            className="min-w-[8rem] flex-1 rounded border border-neutral-300 px-2 py-1 text-sm"
+            className="ds-input min-w-[8rem] flex-1"
             placeholder={kind === "must-include" ? "Add a rule…" : "Add a phrase…"}
           />
           <button
             type="button"
             aria-label={`Add ${kind} item`}
             onClick={add}
-            className="rounded border border-neutral-300 bg-white px-2 py-1 text-sm hover:bg-neutral-100"
+            className="ds-btn-soft"
           >
             Add
           </button>

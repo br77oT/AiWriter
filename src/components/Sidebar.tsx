@@ -29,6 +29,9 @@ export function Sidebar({
 }: SidebarProps) {
   const router = useRouter();
   const [docs, setDocs] = useState<DocumentSummary[]>([]);
+  // Live filter on the Recent drafts list. Per-session only (intentional —
+  // it's a quick "find this draft" affordance, not a stored preference).
+  const [filter, setFilter] = useState("");
 
   useEffect(() => {
     fetch("/api/documents")
@@ -38,6 +41,12 @@ export function Sidebar({
       )
       .catch(() => setDocs([]));
   }, [activeDocumentId]);
+
+  const trimmedFilter = filter.trim().toLowerCase();
+  const visibleDocs =
+    trimmedFilter === ""
+      ? docs
+      : docs.filter((d) => d.title.toLowerCase().includes(trimmedFilter));
 
   // "New document" routes through the onboarding wizard rather than POSTing
   // /api/documents directly. Per PRD user story 37 / issue 010 AC:
@@ -73,13 +82,43 @@ export function Sidebar({
         <h2 className="px-2 pb-1 pt-2 text-xs font-semibold uppercase tracking-wide text-neutral-500">
           Recent drafts
         </h2>
+        {docs.length > 0 && (
+          <div className="relative px-2 pb-2">
+            <input
+              type="text"
+              aria-label="Filter drafts by title"
+              placeholder="Filter…"
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              className="ds-input ds-input--sm w-full pr-7"
+            />
+            {filter !== "" && (
+              <button
+                type="button"
+                aria-label="Clear filter"
+                onClick={() => setFilter("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-xs leading-none text-neutral-400 hover:text-neutral-700"
+              >
+                ×
+              </button>
+            )}
+          </div>
+        )}
         <ul className="space-y-1">
           {docs.length === 0 && (
             <li className="px-2 py-1 text-sm text-neutral-400">
               No documents yet.
             </li>
           )}
-          {docs.map((doc) => (
+          {docs.length > 0 && visibleDocs.length === 0 && (
+            <li
+              className="px-2 py-1 text-sm text-neutral-400"
+              data-testid="sidebar-no-filter-matches"
+            >
+              No drafts match &ldquo;{filter}&rdquo;.
+            </li>
+          )}
+          {visibleDocs.map((doc) => (
             <li key={doc.id}>
               <Link
                 href={`/documents/${doc.id}`}

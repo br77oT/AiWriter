@@ -104,3 +104,15 @@ export function moveSection(
 function clamp(n: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, n));
 }
+
+// Returns the ids of sections that are marked `required` but have an empty
+// (whitespace-only) heading. These sections can't be meaningfully generated —
+// the LLM has nothing to title the prose with — so the workspace blocks
+// Generate Draft until they're filled in.
+export function incompleteRequiredSectionIds(
+  outline: OutlineSection[]
+): string[] {
+  return outline
+    .filter((s) => s.required && s.heading.trim() === "")
+    .map((s) => s.id);
+}
