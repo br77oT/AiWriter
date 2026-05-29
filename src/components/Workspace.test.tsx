@@ -38,10 +38,12 @@ function installFetch(handler: (input: RequestInfo, init?: RequestInit) => unkno
     vi.fn(async (input: RequestInfo, init?: RequestInit) => {
       const result = await handler(input, init);
       const url = String(input);
-      // /api/validate now streams NDJSON. Tests still return the legacy
-      // payload shape; wrap it in a one-event 'done' stream so the
-      // streaming client can read the same fixture without changes.
-      if (url.endsWith("/api/validate")) {
+      // /api/validate and /api/generate both stream NDJSON now. Tests still
+      // return the legacy payload shape; wrap it in a one-event 'done'
+      // stream so the streaming client can read the same fixture without
+      // per-test plumbing. Tests that want per-section events can supply
+      // `__ndjson: [...events]` instead of a plain object.
+      if (url.endsWith("/api/validate") || url.endsWith("/api/generate")) {
         const lines = (result as { __ndjson?: unknown[] }).__ndjson
           ? (result as { __ndjson: unknown[] }).__ndjson
           : [{ type: "done", ...(result as Record<string, unknown>) }];

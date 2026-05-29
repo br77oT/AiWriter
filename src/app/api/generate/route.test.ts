@@ -20,6 +20,36 @@ function scriptedHeadingProvider() {
   });
 }
 
+// Drain the streaming NDJSON body and return every parsed event. Tests use
+// this both to wait for the work to finish (so store mutations are
+// observable) and to inspect per-section progress events.
+async function drain(res: Response): Promise<Array<Record<string, unknown>>> {
+  if (!res.body) return [];
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  const events: Array<Record<string, unknown>> = [];
+  let buffer = "";
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    let nl: number;
+    while ((nl = buffer.indexOf("\n")) !== -1) {
+      const line = buffer.slice(0, nl);
+      buffer = buffer.slice(nl + 1);
+      if (line.trim() !== "") events.push(JSON.parse(line));
+    }
+  }
+  return events;
+}
+
+function findDone(events: Array<Record<string, unknown>>): Record<string, unknown> {
+  const done = events.find((e) => e.type === "done");
+  if (!done) throw new Error("No 'done' event in stream");
+  return done;
+}
+
 describe("POST /api/generate", () => {
   beforeEach(() => {
     setDefaultStoreForTesting(createDocumentStore({ filename: ":memory:" }));
@@ -31,24 +61,14 @@ describe("POST /api/generate", () => {
     setDefaultProviderForTesting(null);
   });
 
-  it("generates one section per outline ID and persists the draft", async () => {
+  it("streams one section-start + section-done per outline ID and persists the draft", async () => {
     const store = getDefaultStore();
     const created = store.create();
     store.update(created.id, (doc) => ({
       ...doc,
       outline: [
-        {
-          id: "summary",
-          heading: "Summary",
-          description: "",
-          required: true,
-        },
-        {
-          id: "timeline",
-          heading: "Timeline",
-          description: "",
-          required: true,
-        },
+        { id: "summary", heading: "Summary", description: "", required: true },
+        { id: "timeline", heading: "Timeline", description: "", required: true },
       ],
       checks: [{ id: "c1", question: "What happened?" }],
     }));
@@ -60,13 +80,21 @@ describe("POST /api/generate", () => {
       })
     );
     expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("application/x-ndjson");
 
-    const data = (await res.json()) as {
-      document: { draftSections: Record<string, string> };
+    const events = await drain(res);
+    // Per-section: start + done for both sections, plus a final done.
+    const starts = events.filter((e) => e.type === "section-start");
+    const dones = events.filter((e) => e.type === "section-done");
+    expect(starts.map((e) => e.outlineId)).toEqual(["summary", "timeline"]);
+    expect(dones.map((e) => e.outlineId)).toEqual(["summary", "timeline"]);
+    expect((dones[0] as { text: string }).text).toBe("Drafted: Summary");
+
+    const done = findDone(events) as {
       draftSections: Record<string, string>;
     };
-    expect(data.draftSections.summary).toBe("Drafted: Summary");
-    expect(data.draftSections.timeline).toBe("Drafted: Timeline");
+    expect(done.draftSections.summary).toBe("Drafted: Summary");
+    expect(done.draftSections.timeline).toBe("Drafted: Timeline");
 
     const persisted = store.get(created.id)!;
     expect(persisted.draftSections.summary).toBe("Drafted: Summary");
@@ -90,8 +118,8 @@ describe("POST /api/generate", () => {
         body: JSON.stringify({ documentId: created.id }),
       })
     );
-
-    const data = (await res.json()) as {
+    const events = await drain(res);
+    const done = findDone(events) as {
       promptLog: {
         kind: string;
         exchanges: Array<{
@@ -101,10 +129,9 @@ describe("POST /api/generate", () => {
         }>;
       };
     };
-    expect(data.promptLog.kind).toBe("Generate");
-    // One exchange per unlocked outline section.
-    expect(data.promptLog.exchanges).toHaveLength(2);
-    const first = data.promptLog.exchanges[0]!;
+    expect(done.promptLog.kind).toBe("Generate");
+    expect(done.promptLog.exchanges).toHaveLength(2);
+    const first = done.promptLog.exchanges[0]!;
     expect(first.systemPrompt).toContain("structured document drafter");
     expect(first.messages[0]!.content).toContain('Write the section "Summary"');
     expect(first.response).toBe("Drafted: Summary");
@@ -130,51 +157,87 @@ describe("POST /api/generate", () => {
       ],
     }));
 
-    await generatePOST(
+    const res = await generatePOST(
       new Request("http://t/", {
         method: "POST",
         body: JSON.stringify({ documentId: created.id }),
       })
     );
+    await drain(res);
 
     const after = store.get(created.id)!;
     expect(after.spec).toEqual(before.spec);
     expect(after.outline).toEqual(before.outline);
   });
 
-  it("preserves locked sections during full-draft generation", async () => {
+  it("emits a section-skipped event for locked sections and preserves their prose", async () => {
     const store = getDefaultStore();
     const created = store.create();
     store.update(created.id, (doc) => ({
       ...doc,
       outline: [
-        {
-          id: "summary",
-          heading: "Summary",
-          description: "",
-          required: true,
-        },
-        {
-          id: "timeline",
-          heading: "Timeline",
-          description: "",
-          required: true,
-        },
+        { id: "summary", heading: "Summary", description: "", required: true },
+        { id: "timeline", heading: "Timeline", description: "", required: true },
       ],
       lockedSectionIds: ["timeline"],
       draftSections: { timeline: "MANUAL TIMELINE — KEEP" },
     }));
 
-    await generatePOST(
+    const res = await generatePOST(
       new Request("http://t/", {
         method: "POST",
         body: JSON.stringify({ documentId: created.id }),
       })
     );
+    const events = await drain(res);
+
+    const skipped = events.filter((e) => e.type === "section-skipped");
+    expect(skipped).toHaveLength(1);
+    expect((skipped[0] as { outlineId: string; reason: string }).outlineId).toBe(
+      "timeline"
+    );
+    expect((skipped[0] as { reason: string }).reason).toBe("locked");
 
     const after = store.get(created.id)!;
     expect(after.draftSections.timeline).toBe("MANUAL TIMELINE — KEEP");
     expect(after.draftSections.summary).toBe("Drafted: Summary");
+  });
+
+  it("persists each section as soon as its section-done event fires (partial state survives failure)", async () => {
+    const store = getDefaultStore();
+    const created = store.create();
+    store.update(created.id, (doc) => ({
+      ...doc,
+      outline: [
+        { id: "summary", heading: "Summary", description: "", required: true },
+        { id: "timeline", heading: "Timeline", description: "", required: true },
+      ],
+    }));
+
+    // After draining: summary persisted before timeline starts is hard to
+    // observe directly; instead assert that by the time the second
+    // section-start fires, the first section is already on disk.
+    let summaryAtTimelineStart: string | undefined;
+    setDefaultProviderForTesting(
+      createScriptedProvider((req) => {
+        const heading = req.messages[0]!.content.match(
+          /Write the section "([^"]+)"/
+        )?.[1];
+        if (heading === "Timeline") {
+          summaryAtTimelineStart = store.get(created.id)?.draftSections.summary;
+        }
+        return `Drafted: ${heading}`;
+      })
+    );
+
+    const res = await generatePOST(
+      new Request("http://t/", {
+        method: "POST",
+        body: JSON.stringify({ documentId: created.id }),
+      })
+    );
+    await drain(res);
+    expect(summaryAtTimelineStart).toBe("Drafted: Summary");
   });
 
   it("records a 'Generate' version with the new draftSections (slice 011)", async () => {
@@ -187,12 +250,13 @@ describe("POST /api/generate", () => {
       ],
     }));
 
-    await generatePOST(
+    const res = await generatePOST(
       new Request("http://t/", {
         method: "POST",
         body: JSON.stringify({ documentId: created.id }),
       })
     );
+    await drain(res);
 
     const persisted = store.get(created.id)!;
     expect(persisted.versions).toHaveLength(1);

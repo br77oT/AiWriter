@@ -44,3 +44,13 @@ npm-debug.log*
 /data/*.db-journal
 /data/*.db-shm
 /data/*.db-wal
+
+# Local planning / scratch — kept out of the public repo
+/prd/
+/issues/
+/next features.md
+/docs/recommendations.md
+/docs/decisions.md
+
+# Stray ImageMagick output that occasionally lands here
+/json

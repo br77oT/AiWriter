@@ -44,6 +44,43 @@ import {
 
 export type DraftSections = Record<string, string>;
 
+// Per-section progress events emitted by `generate()` so the route /
+// streaming consumer can update the UI as work happens. `total` is the
+// full outline length (locked sections included) so the client can render
+// a stable checklist that doesn't reshuffle when sections are skipped.
+export type GenerateProgressEvent =
+  | {
+      type: "section-start";
+      index: number;
+      total: number;
+      outlineId: string;
+      heading: string;
+    }
+  | {
+      type: "section-done";
+      index: number;
+      total: number;
+      outlineId: string;
+      heading: string;
+      text: string;
+    }
+  | {
+      type: "section-error";
+      index: number;
+      total: number;
+      outlineId: string;
+      heading: string;
+      message: string;
+    }
+  | {
+      type: "section-skipped";
+      index: number;
+      total: number;
+      outlineId: string;
+      heading: string;
+      reason: "locked";
+    };
+
 export interface GenerateOptions {
   provider?: LlmProvider;
   // Section IDs that must NOT be regenerated. Engine returns no entry for
@@ -56,6 +93,9 @@ export interface GenerateOptions {
   // Accepted but intentionally not read in full-draft mode — see top-of-file
   // invariants. Slice 007's rewrite/expand modes will read it.
   existingDraft?: Record<string, string>;
+  // Fires once per section in outline order. Awaitable so the route can
+  // persist after every `section-done` before the next section starts.
+  onProgress?: (event: GenerateProgressEvent) => void | Promise<void>;
 }
 
 export async function generate(
@@ -66,13 +106,46 @@ export async function generate(
 ): Promise<DraftSections> {
   const provider = options.provider ?? getDefaultProvider();
   const locked = new Set(options.lockedSectionIds ?? []);
-  const targets = outline.filter((s) => !locked.has(s.id));
-
+  const total = outline.length;
   const result: DraftSections = {};
-  for (const section of targets) {
-    const request = buildSectionRequest(spec, outline, checks, section);
-    const { text } = await provider.complete(request);
-    result[section.id] = text.trim();
+
+  for (let index = 0; index < outline.length; index++) {
+    const section = outline[index];
+    const common = {
+      index,
+      total,
+      outlineId: section.id,
+      heading: section.heading,
+    };
+    if (locked.has(section.id)) {
+      await options.onProgress?.({
+        type: "section-skipped",
+        ...common,
+        reason: "locked",
+      });
+      continue;
+    }
+    await options.onProgress?.({ type: "section-start", ...common });
+    try {
+      const request = buildSectionRequest(spec, outline, checks, section);
+      const { text } = await provider.complete(request);
+      const trimmed = text.trim();
+      result[section.id] = trimmed;
+      await options.onProgress?.({
+        type: "section-done",
+        ...common,
+        text: trimmed,
+      });
+    } catch (err) {
+      // Per ADR 0001: a single section's failure does not abort the run.
+      // Emit a section-error event and move on. The caller (route) decides
+      // what to persist (nothing for this section — the prior text stays).
+      await options.onProgress?.({
+        type: "section-error",
+        ...common,
+        message: err instanceof Error ? err.message : String(err),
+      });
+    }
   }
   return result;
 }

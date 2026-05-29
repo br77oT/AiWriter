@@ -135,30 +135,28 @@ export function TopBar({
           <span className="font-semibold tracking-tight">AiWriter</span>
           <span
             data-testid="app-tagline"
-            className="hidden text-xs text-[color:var(--text-secondary)] sm:inline"
+            className="hidden whitespace-nowrap text-xs text-[color:var(--text-secondary)] sm:inline"
           >
-            Turn a{" "}
-            <TaglineLink testid="tagline-spec" onClick={onOpenSpec}>
-              spec
-            </TaglineLink>
-            ,{" "}
+            AiWriter helps you draft{" "}
             <TaglineLink testid="tagline-outline" onClick={onOpenOutline}>
-              outline
-            </TaglineLink>
-            , and checks into a{" "}
+              structured documents
+            </TaglineLink>{" "}
+            (postmortems, proposals, briefs, design docs) with AI without
+            losing control of the{" "}
             <TaglineLink testid="tagline-structured" onClick={onOpenStructured}>
-              generated draft
+              output
             </TaglineLink>
             .
           </span>
         </div>
-        <Link
-          href="/scenarios"
-          className="text-sm font-medium text-blue-600 underline hover:text-blue-800"
-        >
-          Examples
-        </Link>
         <div className="ml-auto flex flex-wrap items-center gap-2">
+          <Link
+            href="/scenarios"
+            data-testid="top-bar-examples"
+            className="ds-btn-secondary"
+          >
+            Examples
+          </Link>
           <button
             type="button"
             onClick={onOpenHistory}
@@ -171,19 +169,6 @@ export function TopBar({
             className="rounded border border-neutral-300 bg-white px-3 py-1 text-sm hover:bg-neutral-100 disabled:bg-neutral-100 disabled:text-neutral-400"
           >
             History{versionCount > 0 ? ` (${versionCount})` : ""}
-          </button>
-          <button
-            type="button"
-            onClick={onOpenPrompts}
-            disabled={!hasPromptLog}
-            title={
-              hasPromptLog
-                ? "Show the exact prompt sent to the LLM by the last action."
-                : "Run Generate, Validate, Rewrite, or Auto-fix to capture a prompt."
-            }
-            className="rounded border border-neutral-300 bg-white px-3 py-1 text-sm hover:bg-neutral-100 disabled:bg-neutral-100 disabled:text-neutral-400"
-          >
-            Prompts
           </button>
           {!reviewerMode && (
             <button
@@ -290,7 +275,7 @@ export function TopBar({
               title={
                 canGenerate
                   ? undefined
-                  : "Add at least one outline section, and give every required section a heading, before generating."
+                  : "Every Required prompt needs a heading and some text in its textarea before Generate Draft will run. Type something or click Insert example to seed it."
               }
               className="ds-btn-primary"
             >
@@ -325,7 +310,8 @@ export function TopBar({
           between stages without opening the mini-map. Hidden in reviewer
           mode (reviewers don't author through these stages). */}
       {!reviewerMode && (
-        <div className="flex items-center border-t border-neutral-100 pt-1.5">
+        <div className="flex items-center gap-3 border-t border-neutral-100 pt-1.5">
+          <span className="ds-pane-heading shrink-0">Workflow</span>
           <WorkspaceGuideRow
             document={document}
             generating={generating}

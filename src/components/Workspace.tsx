@@ -42,7 +42,10 @@ import {
   isDocumentEmpty,
   type Template,
 } from "@/lib/templates";
-import { incompleteRequiredSectionIds } from "@/lib/outline";
+import {
+  incompleteRequiredSectionIds,
+  requiredSectionsWithEmptyDraft,
+} from "@/lib/outline";
 
 interface WorkspaceProps {
   document: Document;
@@ -60,7 +63,9 @@ const REVALIDATE_DEBOUNCE_MS = 600;
 // validation rail are never collapsible — they're the focus. "assembled"
 // (the read-only stitched preview) is collapsed by default so the workspace
 // stays focused on the editing surface until the user explicitly opens it.
+// "sidebar" is the left-rail Documents list; collapsing it frees ~256px.
 type CollapsiblePaneId =
+  | "sidebar"
   | "spec"
   | "outline"
   | "checks"
@@ -68,6 +73,7 @@ type CollapsiblePaneId =
   | "stats"
   | "validation";
 const COLLAPSIBLE_PANE_IDS: CollapsiblePaneId[] = [
+  "sidebar",
   "spec",
   "outline",
   "checks",
@@ -109,6 +115,21 @@ export function Workspace({
     { index: number; total: number; question: string } | null
   >(null);
   const [genStatus, setGenStatus] = useState<GenerationStatus>("idle");
+  // Per-section progress for a streaming Generate run. `null` between runs.
+  // The total comes from the first section-start so we don't pre-render an
+  // empty checklist.
+  const [generationProgress, setGenerationProgress] = useState<
+    { index: number; total: number; heading: string } | null
+  >(null);
+  // Status for each section in the current run. Cleared at the start of
+  // every run. Section ids that don't appear are "pending" by default.
+  const [sectionStatuses, setSectionStatuses] = useState<
+    Record<string, "writing" | "done" | "error" | "skipped">
+  >({});
+  // AbortController for the in-flight Generate fetch. Cancel fires
+  // `.abort()`; the catch in handleGenerate distinguishes that from a real
+  // error and keeps any already-applied section state.
+  const generateAbortRef = useRef<AbortController | null>(null);
   const [rewriteTarget, setRewriteTarget] = useState<RewriteTarget | null>(
     null
   );
@@ -639,31 +660,160 @@ export function Workspace({
   );
 
   const handleGenerate = useCallback(async () => {
+    // Per ADR 0001: /api/generate streams NDJSON per-section events. We read
+    // the body chunk-by-chunk, fill the document's draftSections as each
+    // section-done lands, and let the final 'done' event swap in the
+    // version-stamped document.
+    const controller = new AbortController();
+    generateAbortRef.current = controller;
     setGenStatus("running");
+    setGenerationProgress(null);
+    setSectionStatuses({});
     try {
       const res = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ documentId: document.id }),
+        signal: controller.signal,
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const { document: next, promptLog: log } = (await res.json()) as {
+      const reader = res.body?.getReader();
+      if (!reader) throw new Error("No response body");
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let finalDone: {
         document: Document;
         promptLog?: PromptLog;
-      };
-      setDocument(next);
-      if (log) setPromptLog(log);
+      } | null = null;
+      let streamError: string | null = null;
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        let nl: number;
+        while ((nl = buffer.indexOf("\n")) !== -1) {
+          const line = buffer.slice(0, nl);
+          buffer = buffer.slice(nl + 1);
+          if (line.trim() === "") continue;
+          const event = JSON.parse(line) as
+            | {
+                type: "section-start";
+                index: number;
+                total: number;
+                outlineId: string;
+                heading: string;
+              }
+            | {
+                type: "section-done";
+                index: number;
+                total: number;
+                outlineId: string;
+                heading: string;
+                text: string;
+              }
+            | {
+                type: "section-error";
+                index: number;
+                total: number;
+                outlineId: string;
+                heading: string;
+                message: string;
+              }
+            | {
+                type: "section-skipped";
+                index: number;
+                total: number;
+                outlineId: string;
+                heading: string;
+                reason: "locked";
+              }
+            | {
+                type: "done";
+                document: Document;
+                draftSections: Record<string, string>;
+                promptLog?: PromptLog;
+              }
+            | { type: "error"; message: string };
+          if (event.type === "section-start") {
+            setGenerationProgress({
+              index: event.index,
+              total: event.total,
+              heading: event.heading,
+            });
+            setSectionStatuses((prev) => ({
+              ...prev,
+              [event.outlineId]: "writing",
+            }));
+          } else if (event.type === "section-done") {
+            setSectionStatuses((prev) => ({
+              ...prev,
+              [event.outlineId]: "done",
+            }));
+            // Mirror the server's incremental persistence into local React
+            // state so the textarea fills as soon as the event arrives.
+            setDocument((prev) => ({
+              ...prev,
+              draftSections: {
+                ...prev.draftSections,
+                [event.outlineId]: event.text,
+              },
+            }));
+          } else if (event.type === "section-error") {
+            setSectionStatuses((prev) => ({
+              ...prev,
+              [event.outlineId]: "error",
+            }));
+          } else if (event.type === "section-skipped") {
+            setSectionStatuses((prev) => ({
+              ...prev,
+              [event.outlineId]: "skipped",
+            }));
+          } else if (event.type === "done") {
+            finalDone = {
+              document: event.document,
+              promptLog: event.promptLog,
+            };
+          } else if (event.type === "error") {
+            streamError = event.message;
+          }
+        }
+      }
+      if (streamError || !finalDone) {
+        throw new Error(streamError ?? "Stream ended without a 'done' event");
+      }
+      setDocument(finalDone.document);
+      if (finalDone.promptLog) setPromptLog(finalDone.promptLog);
       setGenStatus("idle");
+      setGenerationProgress(null);
+      generateAbortRef.current = null;
       // PRD §"Checks Module": when "Evaluate after every generation" is ON
       // (default), validate immediately so the rail flips to fresh statuses
       // without an extra Validate click.
       if (document.checksConfig.evaluateAfterEveryGeneration) {
         void runValidate();
       }
-    } catch {
+    } catch (err) {
+      // User cancellation surfaces here as an AbortError. Per ADR 0001 we
+      // keep all already-applied section state (the textareas the user saw
+      // fill in stay filled) — just clean up the in-flight UI bookkeeping.
+      if (controller.signal.aborted) {
+        setGenStatus("idle");
+        setGenerationProgress(null);
+        generateAbortRef.current = null;
+        return;
+      }
+      const message = err instanceof Error ? err.message : String(err);
+      console.error("Generate failed:", message);
       setGenStatus("error");
+      setGenerationProgress(null);
+      generateAbortRef.current = null;
     }
   }, [document.id, document.checksConfig.evaluateAfterEveryGeneration, runValidate]);
+
+  const handleCancelGenerate = useCallback(() => {
+    generateAbortRef.current?.abort();
+  }, []);
 
   const handleAutofix = useCallback(
     async (mode: AutofixMode) => {
@@ -910,13 +1060,20 @@ export function Workspace({
     window.history.replaceState({}, "", `/documents/${document.id}`);
   }, [reviewerMode, document.id, document.outline.length, handleGenerate, runValidate]);
 
-  // Generate-readiness: needs at least one outline section AND every section
-  // the author marked Required must have a non-empty heading. Empty required
-  // sections leave the LLM with nothing to title, so we block instead of
-  // emitting a section with no name.
+  // Generate-readiness: needs at least one outline section, every Required
+  // section must have a heading, AND every Required section's draft textarea
+  // must have user-provided text. The two indicator sets stay separate so
+  // the Draft pane can hint at the right fix ("Heading required" → go to
+  // Outline; "Fill in to generate" → type in the textarea right there).
   const incompleteRequiredIds = incompleteRequiredSectionIds(document.outline);
+  const requiredEmptyDraftIds = requiredSectionsWithEmptyDraft(
+    document.outline,
+    document.draftSections
+  );
   const canGenerate =
-    document.outline.length > 0 && incompleteRequiredIds.length === 0;
+    document.outline.length > 0 &&
+    incompleteRequiredIds.length === 0 &&
+    requiredEmptyDraftIds.length === 0;
 
   const sidebar = (
     <Sidebar
@@ -925,6 +1082,10 @@ export function Workspace({
       onSelectTemplate={handleSelectTemplate}
       compact={isMobile}
       readOnly={reviewerMode}
+      collapsed={!isMobile && collapsedPanes.has("sidebar")}
+      onToggleCollapse={
+        isMobile ? undefined : () => togglePaneCollapsed("sidebar")
+      }
     />
   );
   // Collapse is a desktop-only affordance — the mobile layout already shows
@@ -982,6 +1143,14 @@ export function Workspace({
       readOnly={reviewerMode}
       onEditPrompts={reviewerMode ? undefined : handleEditPrompts}
       incompleteRequiredIds={incompleteRequiredIds}
+      requiredEmptyDraftIds={requiredEmptyDraftIds}
+      generationProgress={generationProgress}
+      sectionStatuses={sectionStatuses}
+      onCancelGenerate={
+        reviewerMode || genStatus !== "running"
+          ? undefined
+          : handleCancelGenerate
+      }
     />
   );
   const assembledDraftPane = (

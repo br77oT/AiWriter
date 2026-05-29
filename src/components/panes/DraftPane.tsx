@@ -21,6 +21,22 @@ interface DraftPaneProps {
   // as a red "Heading needed" indicator next to the prompt so the user
   // knows what to fix before Generate Draft will run.
   incompleteRequiredIds?: string[];
+  // Ids of sections marked Required whose draft textarea is still empty.
+  // Shown as a red "Fill in to generate" indicator so the user knows which
+  // textareas need content before Generate Draft will run.
+  requiredEmptyDraftIds?: string[];
+  // Live per-section progress for an in-flight Generate run. `null` when
+  // no run is active.
+  generationProgress?: {
+    index: number;
+    total: number;
+    heading: string;
+  } | null;
+  // Status badges keyed by outlineId. Missing keys render no badge.
+  sectionStatuses?: Record<string, "writing" | "done" | "error" | "skipped">;
+  // Click handler for the inline Cancel button shown next to "Generating".
+  // Omitted when no Generate run is in flight (or in reviewer mode).
+  onCancelGenerate?: () => void;
 }
 
 // Per-section editor with Slice 007 affordances:
@@ -45,12 +61,21 @@ export function DraftPane({
   readOnly = false,
   onEditPrompts,
   incompleteRequiredIds = [],
+  requiredEmptyDraftIds = [],
+  generationProgress = null,
+  sectionStatuses = {},
+  onCancelGenerate,
 }: DraftPaneProps) {
   const sections = document.outline;
   const lockedIds = new Set(document.lockedSectionIds);
   const incompleteSet = new Set(incompleteRequiredIds);
+  const emptyDraftSet = new Set(requiredEmptyDraftIds);
   const showGenerate = !readOnly && Boolean(onGenerate);
   const showEditPrompts = !readOnly && Boolean(onEditPrompts);
+  // While Generate is streaming the whole pane goes read-only — the run
+  // mutates draftSections live, so accepting keystrokes would race the
+  // server's section-done events. Per ADR 0001.
+  const streaming = generating;
 
   return (
     <section
@@ -83,6 +108,33 @@ export function DraftPane({
         />
       )}
 
+      {streaming && generationProgress && (
+        <div
+          data-testid="draft-generation-progress"
+          className="mb-3 flex flex-wrap items-center gap-2 rounded-[var(--radius-control)] border border-[color:var(--primary-soft)] bg-[color:var(--primary-soft)]/40 px-3 py-2 text-xs text-[color:var(--primary)]"
+        >
+          <span
+            aria-hidden
+            className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-[color:var(--primary-soft)] border-t-[color:var(--primary)]"
+          />
+          <span>
+            Generating: {generationProgress.index + 1} of{" "}
+            {generationProgress.total} —{" "}
+            <span className="italic">{generationProgress.heading}</span>
+          </span>
+          {onCancelGenerate && (
+            <button
+              type="button"
+              data-testid="draft-generate-cancel"
+              onClick={onCancelGenerate}
+              className="ml-auto rounded-[var(--radius-control)] border border-[color:var(--primary)] bg-white px-2 py-0.5 text-xs font-medium text-[color:var(--primary)] hover:bg-[color:var(--primary-soft)]"
+            >
+              Cancel
+            </button>
+          )}
+        </div>
+      )}
+
       {sections.length === 0 ? (
         <p className="text-sm text-neutral-400">
           Outline is empty — load a fixture from the top bar (dev) or build the
@@ -95,6 +147,8 @@ export function DraftPane({
             const isEmpty =
               (document.draftSections[section.id] ?? "").trim() === "";
             const needsHeading = incompleteSet.has(section.id);
+            const needsDraftText =
+              !needsHeading && emptyDraftSet.has(section.id);
             return (
               <div key={section.id}>
                 <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
@@ -110,6 +164,10 @@ export function DraftPane({
                         (untitled)
                       </span>
                     )}
+                    <SectionStatusBadge
+                      status={sectionStatuses[section.id]}
+                      locked={locked}
+                    />
                     {needsHeading ? (
                       <span
                         data-testid={`section-needs-heading-${section.id}`}
@@ -117,6 +175,14 @@ export function DraftPane({
                         title="This prompt is marked Required. Add a heading in the Document Outline pane before generating."
                       >
                         Heading required
+                      </span>
+                    ) : needsDraftText ? (
+                      <span
+                        data-testid={`section-needs-draft-${section.id}`}
+                        className="ds-pill ds-pill-danger"
+                        title="This prompt is marked Required. Write something in the textarea (or click Insert example) before Generate Draft will run."
+                      >
+                        Fill in to generate
                       </span>
                     ) : section.required ? (
                       <span
@@ -140,7 +206,7 @@ export function DraftPane({
                         <button
                           type="button"
                           aria-label={`Insert example text for section "${section.heading}"`}
-                          disabled={locked}
+                          disabled={locked || streaming}
                           onClick={() =>
                             onDraftSectionChange(
                               section.id,
@@ -155,7 +221,7 @@ export function DraftPane({
                       <button
                         type="button"
                         aria-label={`Rewrite section "${section.heading}"`}
-                        disabled={locked}
+                        disabled={locked || streaming}
                         onClick={() => onRewrite(section.id)}
                         className="rounded border border-neutral-300 bg-white px-2 py-0.5 hover:bg-neutral-100 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-400"
                       >
@@ -164,7 +230,7 @@ export function DraftPane({
                       <button
                         type="button"
                         aria-label={`Expand section "${section.heading}"`}
-                        disabled={locked}
+                        disabled={locked || streaming}
                         onClick={() => onExpand(section.id)}
                         className="rounded border border-neutral-300 bg-white px-2 py-0.5 hover:bg-neutral-100 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-400"
                       >
@@ -175,6 +241,7 @@ export function DraftPane({
                           type="checkbox"
                           aria-label={`Lock section "${section.heading}"`}
                           checked={locked}
+                          disabled={streaming}
                           onChange={(e) =>
                             onLockToggle(section.id, e.target.checked)
                           }
@@ -188,7 +255,7 @@ export function DraftPane({
                   aria-label={`Draft text for ${section.heading}`}
                   className="ds-textarea min-h-[6rem] w-full leading-relaxed"
                   value={document.draftSections[section.id] ?? ""}
-                  disabled={locked || readOnly}
+                  disabled={locked || readOnly || streaming}
                   placeholder={
                     readOnly
                       ? undefined
@@ -258,7 +325,7 @@ function GenerateDraftButton({
           title={
             canGenerate
               ? undefined
-              : "Add at least one outline section, and give every required section a heading, before generating."
+              : "Every Required prompt needs a heading and some text in its textarea before Generate Draft will run. Type something or click Insert example to seed it."
           }
           className="ds-btn-primary"
         >
@@ -366,6 +433,49 @@ const SECTION_EXAMPLES: Array<{ match: RegExp; text: string }> = [
 // gets validated, and can be reshaped in place. Matches the section heading
 // against SECTION_EXAMPLES; falls back to a generic worked example for
 // headings we don't recognise.
+// Per-section progress badge for an in-flight Generate run. Reads the
+// status keyed by outlineId; renders nothing when there's no entry (and
+// also nothing for "skipped" if the section isn't locked, which shouldn't
+// happen — locked is the only skip reason today). Locked sections always
+// show a gray "Locked — kept" badge so the user sees, mid-run, which
+// sections won't be touched.
+function SectionStatusBadge({
+  status,
+  locked,
+}: {
+  status?: "writing" | "done" | "error" | "skipped";
+  locked: boolean;
+}) {
+  if (locked || status === "skipped") {
+    return (
+      <span
+        className="ds-pill ds-pill-neutral"
+        title="Locked — kept as-is during Generate."
+      >
+        Locked — kept
+      </span>
+    );
+  }
+  if (status === "writing") {
+    return (
+      <span className="ds-pill ds-pill-neutral">
+        <span
+          aria-hidden
+          className="mr-1 inline-block h-2 w-2 animate-pulse rounded-full bg-[color:var(--primary)]"
+        />
+        Writing…
+      </span>
+    );
+  }
+  if (status === "done") {
+    return <span className="ds-pill ds-pill-success">✓ Done</span>;
+  }
+  if (status === "error") {
+    return <span className="ds-pill ds-pill-danger">Generate failed</span>;
+  }
+  return null;
+}
+
 function exampleTextFor(section: OutlineSection): string {
   const heading = section.heading.trim();
   const hit = SECTION_EXAMPLES.find((e) => e.match.test(heading));

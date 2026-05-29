@@ -1,14 +1,30 @@
 import { NextResponse } from "next/server";
 import { getDefaultStore } from "@/lib/document-store";
-import { generate } from "@/lib/generation";
+import { generate, type GenerateProgressEvent } from "@/lib/generation";
 import { recordVersion } from "@/lib/versions";
 import { createRecordingProvider, getDefaultProvider } from "@/lib/llm";
 
-// POST /api/generate { documentId } → { document, draftSections, promptLog }
+// POST /api/generate { documentId }
 //
-// Full-draft mode: regenerates every unlocked section. Locked sections stay
-// bit-identical (slice 007 introduces the lock UI; the route already honors
-// it so the contract is stable).
+// Streams NDJSON (one JSON object per line) so the client can render live
+// per-section progress while the LLM works. Each section costs one LLM call;
+// with N outline sections (including locked) the response carries:
+//
+//   {"type":"section-start","index":0,"total":N,"outlineId":"…","heading":"…"}\n
+//   {"type":"section-done","index":0,"total":N,"outlineId":"…","heading":"…","text":"…"}\n
+//   …repeats per section; locked sections emit only a "section-skipped" event…
+//   {"type":"done","document":…,"draftSections":…,"promptLog":…}\n
+//
+// Per ADR 0001:
+// - Persistence is incremental: after each `section-done` the new prose is
+//   written into `draftSections` so a mid-run failure / disconnect / cancel
+//   keeps already-finished sections.
+// - A single section's LLM call throwing emits a `section-error` event but
+//   does not abort the run — sibling sections still process.
+// - Locked sections stay bit-identical (they emit only `section-skipped`).
+//
+// Or — if the requested document is missing / the body is malformed — a
+// single non-stream JSON response with the appropriate 4xx status.
 export async function POST(req: Request) {
   let body: { documentId?: string } = {};
   try {
@@ -35,52 +51,80 @@ export async function POST(req: Request) {
   // Wrap the provider so we can return the exact per-section prompts that
   // hit the LLM — the Prompt Inspector panel renders these.
   const recorder = createRecordingProvider(getDefaultProvider());
-  const startedAt = Date.now();
-  const generated = await generate(doc.spec, doc.outline, doc.checks, {
-    provider: recorder,
-    lockedSectionIds: doc.lockedSectionIds,
-    outlineFrozen: doc.outlineFrozen,
-    existingDraft: doc.draftSections,
+
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const encoder = new TextEncoder();
+      const write = (event: unknown) => {
+        controller.enqueue(encoder.encode(JSON.stringify(event) + "\n"));
+      };
+      const startedAt = Date.now();
+      try {
+        await generate(doc.spec, doc.outline, doc.checks, {
+          provider: recorder,
+          lockedSectionIds: doc.lockedSectionIds,
+          outlineFrozen: doc.outlineFrozen,
+          existingDraft: doc.draftSections,
+          onProgress: async (event: GenerateProgressEvent) => {
+            // Incremental persistence: every successful section is written
+            // to draftSections as soon as it lands. Locked sections are
+            // left alone (no event-driven write). Errored sections leave
+            // the prior text untouched (we never write the failing one).
+            if (event.type === "section-done") {
+              store.update(documentId, (existing) => ({
+                ...existing,
+                draftSections: {
+                  ...existing.draftSections,
+                  [event.outlineId]: event.text,
+                },
+              }));
+            }
+            write(event);
+          },
+        });
+
+        const durationMs = Date.now() - startedAt;
+        // Record the per-run Version once at the end, capturing aggregate
+        // duration + token usage for the whole Generate run. Per-section
+        // persistence above already wrote the prose; this snapshot just
+        // adds a history entry. validationReport is null — Workspace will
+        // chain Validate next when evaluateAfterEveryGeneration is on.
+        const updated = store.update(documentId, (existing) =>
+          recordVersion(existing, "Generate", null, {
+            metrics: {
+              durationMs,
+              provider: recorder.kind,
+              model: recorder.model,
+              tokenUsage: recorder.totalUsage(),
+            },
+          })
+        );
+        write({
+          type: "done",
+          document: updated,
+          draftSections: updated.draftSections,
+          promptLog: {
+            kind: "Generate",
+            timestamp: new Date().toISOString(),
+            exchanges: recorder.exchanges,
+          },
+        });
+      } catch (err) {
+        write({
+          type: "error",
+          message: err instanceof Error ? err.message : String(err),
+        });
+      } finally {
+        controller.close();
+      }
+    },
   });
-  const durationMs = Date.now() - startedAt;
 
-  // Merge: locked sections retain their existing prose; only unlocked IDs
-  // get overwritten. Sections whose outline ID was removed since the last
-  // generation are pruned implicitly because we only carry forward locked
-  // ones.
-  const lockedIds = new Set(doc.lockedSectionIds);
-  const merged: Record<string, string> = {};
-  for (const section of doc.outline) {
-    if (lockedIds.has(section.id) && doc.draftSections[section.id]) {
-      merged[section.id] = doc.draftSections[section.id];
-    } else if (generated[section.id] !== undefined) {
-      merged[section.id] = generated[section.id];
-    }
-  }
-
-  const updated = store.update(documentId, (existing) => {
-    const next = { ...existing, draftSections: merged };
-    // Slice 011: snapshot on every full-draft generation. validationReport is
-    // null at this point — the workspace will fire /api/validate next when
-    // checksConfig.evaluateAfterEveryGeneration is on, which records its own
-    // version including the report.
-    return recordVersion(next, "Generate", null, {
-      metrics: {
-        durationMs,
-        provider: recorder.kind,
-        model: recorder.model,
-        tokenUsage: recorder.totalUsage(),
-      },
-    });
-  });
-
-  return NextResponse.json({
-    document: updated,
-    draftSections: merged,
-    promptLog: {
-      kind: "Generate",
-      timestamp: new Date().toISOString(),
-      exchanges: recorder.exchanges,
+  return new Response(stream, {
+    status: 200,
+    headers: {
+      "Content-Type": "application/x-ndjson; charset=utf-8",
+      "Cache-Control": "no-store",
     },
   });
 }

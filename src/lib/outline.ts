@@ -116,3 +116,18 @@ export function incompleteRequiredSectionIds(
     .filter((s) => s.required && s.heading.trim() === "")
     .map((s) => s.id);
 }
+
+// Returns the ids of `required` sections whose draft textarea is still
+// empty. The workspace uses this to block Generate Draft so the user can't
+// kick off an LLM run while required prompts have no content — even when
+// their heading is set.
+export function requiredSectionsWithEmptyDraft(
+  outline: OutlineSection[],
+  draftSections: Record<string, string>
+): string[] {
+  return outline
+    .filter(
+      (s) => s.required && (draftSections[s.id] ?? "").trim() === ""
+    )
+    .map((s) => s.id);
+}

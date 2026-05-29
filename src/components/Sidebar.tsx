@@ -6,26 +6,33 @@ import { useRouter } from "next/navigation";
 import type { DocumentSummary } from "@/lib/types";
 import type { Template } from "@/lib/templates";
 import { formatRelativeTime } from "@/lib/relative-time";
+import { CollapsedStrip, CollapseButton } from "./panes/CollapsiblePane";
 
 interface SidebarProps {
   activeDocumentId: string;
-  templates: Template[];
-  onSelectTemplate: (templateId: string) => void;
+  // Kept for compatibility with the existing call site; templates are no
+  // longer surfaced in the sidebar (they live in the onboarding wizard and
+  // the AppMenu picker). Unused here.
+  templates?: Template[];
+  onSelectTemplate?: (templateId: string) => void;
   // When true, the sidebar fills its parent rather than imposing a fixed
   // width. Used by the mobile layout where the drawer owns the width.
   compact?: boolean;
-  // Reviewer mode (slice 014): hides the Templates list (selecting one
-  // mutates the doc) but keeps Recent drafts navigation + New document
-  // (which routes to /onboarding without touching the current doc).
+  // Reviewer mode (slice 014): kept for compatibility but no longer changes
+  // any visible affordance — there is no template list to hide.
   readOnly?: boolean;
+  // Collapse seam — same pattern as the other panes. When collapsed, the
+  // sidebar renders as a thin vertical strip with an Expand button. Only
+  // wired up on desktop (mobile already has its own drawer pattern).
+  collapsed?: boolean;
+  onToggleCollapse?: () => void;
 }
 
 export function Sidebar({
   activeDocumentId,
-  templates,
-  onSelectTemplate,
   compact = false,
-  readOnly = false,
+  collapsed = false,
+  onToggleCollapse,
 }: SidebarProps) {
   const router = useRouter();
   const [docs, setDocs] = useState<DocumentSummary[]>([]);
@@ -56,27 +63,32 @@ export function Sidebar({
     router.push("/onboarding");
   }
 
-  // Show built-ins first, then user-saved (TemplateStore.list() already
-  // returns them in this order).
-  const userTemplates = templates.filter((t) => !t.builtIn);
-  const builtInTemplates = templates.filter((t) => t.builtIn);
-
+  if (collapsed && onToggleCollapse) {
+    return (
+      <div className="w-10 shrink-0">
+        <CollapsedStrip label="Documents" onExpand={onToggleCollapse} />
+      </div>
+    );
+  }
   return (
     <aside
       className={
         "flex h-full flex-col border-r border-neutral-200 bg-white " +
         (compact ? "w-full" : "w-64 shrink-0")
       }
-      aria-label="Documents and templates"
+      aria-label="Documents"
     >
-      <div className="border-b border-neutral-200 p-3">
+      <div className="flex items-center gap-2 border-b border-neutral-200 p-3">
         <button
           type="button"
           onClick={handleNewDocument}
-          className="w-full rounded bg-neutral-900 px-3 py-2 text-sm font-medium text-white hover:bg-neutral-800"
+          className="flex-1 rounded bg-neutral-900 px-3 py-2 text-sm font-medium text-white hover:bg-neutral-800"
         >
           New document
         </button>
+        {onToggleCollapse && (
+          <CollapseButton label="Documents" onCollapse={onToggleCollapse} />
+        )}
       </div>
       <nav className="flex-1 overflow-y-auto p-2">
         <h2 className="px-2 pb-1 pt-2 text-xs font-semibold uppercase tracking-wide text-neutral-500">
@@ -141,50 +153,6 @@ export function Sidebar({
             </li>
           ))}
         </ul>
-
-        {!readOnly && (
-          <>
-            <h2 className="px-2 pb-1 pt-4 text-xs font-semibold uppercase tracking-wide text-neutral-500">
-              Templates
-            </h2>
-            <ul className="space-y-1">
-              {builtInTemplates.map((t) => (
-                <li key={t.id}>
-                  <button
-                    type="button"
-                    onClick={() => onSelectTemplate(t.id)}
-                    aria-label={`Load template ${t.name}`}
-                    className="block w-full truncate rounded px-2 py-1 text-left text-sm hover:bg-neutral-50"
-                  >
-                    {t.name}
-                  </button>
-                </li>
-              ))}
-            </ul>
-
-            {userTemplates.length > 0 && (
-              <>
-                <h3 className="px-2 pb-1 pt-3 text-[10px] font-semibold uppercase tracking-wide text-neutral-400">
-                  Saved
-                </h3>
-                <ul className="space-y-1">
-                  {userTemplates.map((t) => (
-                    <li key={t.id}>
-                      <button
-                        type="button"
-                        onClick={() => onSelectTemplate(t.id)}
-                        aria-label={`Load template ${t.name}`}
-                        className="block w-full truncate rounded px-2 py-1 text-left text-sm hover:bg-neutral-50"
-                      >
-                        {t.name}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </>
-            )}
-          </>
-        )}
       </nav>
     </aside>
   );
